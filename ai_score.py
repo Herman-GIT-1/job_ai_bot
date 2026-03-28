@@ -1,15 +1,14 @@
 import os
 from groq import Groq
 from dotenv import load_dotenv
+from resume_parser import load_resume
 
 load_dotenv()
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-with open(os.path.join(os.path.dirname(__file__), "resume.txt")) as f:
-    resume = f.read()
-
 def evaluate(job):
+    resume = load_resume()
     tech_stack = job.get("tech_stack", "")
     tech_info = f"Tech stack: {tech_stack}" if tech_stack else ""
 
