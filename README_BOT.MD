@@ -1,27 +1,17 @@
 # Job Search Bot 🤖
 
-Автоматизированный поиск стажировок: собирает вакансии, оценивает их через AI и генерирует cover letter.
+Автоматизированный поиск стажировок: собирает вакансии через SerpAPI, оценивает их через AI, генерирует cover letter и уведомляет через Telegram.
 
-## Как запустить
+## Установка
 
-### 1. Установить зависимости
 ```bash
 pip install requests groq python-dotenv python-telegram-bot
 ```
 
-### 2. Получить API ключи
+## Настройка
 
-**Groq** (бесплатно):
-- Зайди на https://console.groq.com
-- Sign up → API Keys → Create API Key
+Создай файл `.env` в корне проекта (`.env.example` есть в репозитории):
 
-**SerpAPI** (100 запросов/месяц бесплатно):
-- Зайди на https://serpapi.com
-- Sign up → Dashboard → Your API Key
-
-### 3. Создать .env файл
-
-Создай файл `.env` в корне проекта:
 ```env
 GROQ_API_KEY=your_groq_api_key_here
 SERPAPI_KEY=your_serpapi_key_here
@@ -29,32 +19,21 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 TELEGRAM_CHAT_ID=your_telegram_chat_id_here
 ```
 
-## Переменные окружения
+| Переменная | Где получить |
+|---|---|
+| `GROQ_API_KEY` | console.groq.com → API Keys |
+| `SERPAPI_KEY` | serpapi.com → Dashboard (100 запросов/месяц бесплатно) |
+| `TELEGRAM_BOT_TOKEN` | @BotFather в Telegram |
+| `TELEGRAM_CHAT_ID` | @userinfobot в Telegram |
 
-| Переменная | Где получить | Описание |
-|---|---|---|
-| `GROQ_API_KEY` | console.groq.com | LLM API для оценки вакансий и генерации cover letter |
-| `SERPAPI_KEY` | serpapi.com | Поиск вакансий через Google Jobs (100 запросов/месяц бесплатно) |
-| `TELEGRAM_BOT_TOKEN` | @BotFather в Telegram | Токен Telegram-бота |
-| `TELEGRAM_CHAT_ID` | @userinfobot в Telegram | Твой личный chat ID |
-
-### 4. Запуск
+## Запуск
 
 ```bash
-# Найти вакансии и сохранить в БД
-python main.py --scrape
-
-# AI-оценка + генерация cover letter
-python main.py --score
-
-# Открыть лучшие вакансии (score >= 7) в браузере
-python main.py --apply
-
-# Запустить Telegram-бот
-python main.py --bot
-
-# Всё сразу
-python main.py --all
+python main.py --scrape   # найти вакансии и сохранить в БД
+python main.py --score    # AI-оценка + генерация cover letter
+python main.py --apply    # открыть лучшие вакансии (score >= 7) в браузере
+python main.py --bot      # запустить Telegram-бот
+python main.py --all      # scrape + score + apply последовательно
 ```
 
 ## Как работает
@@ -65,9 +44,7 @@ SerpAPI (Google Jobs) → scraper.py → database.py (SQLite)
                                     ai_score.py (Groq)
                                     cover_letter.py (Groq)
                                            ↓
-                                    open_jobs.py → браузер
+                              bot.py (Telegram) / open_jobs.py (браузер)
 ```
 
-## Источник вакансий
-
-**SerpAPI / Google Jobs** — поиск вакансий через Google Jobs API. 6 поисковых запросов за один `--scrape` (junior developer, data analyst и др. в Варшаве), итого ~50+ уникальных вакансий.
+`--scrape` выполняет 8 поисковых запросов (junior developer, data analyst и др. по Варшаве) и сохраняет ~50+ уникальных вакансий. Каждый запрос расходует 1 из 100 бесплатных запросов SerpAPI в месяц.
