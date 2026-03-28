@@ -21,10 +21,10 @@ Job: {job['title']} at {job['company']}
 {tech_info}
 
 Guidelines:
-- Highlight the most relevant skills for THIS specific role (Python, SQL, Power BI, ML, Flask — pick what fits)
-- Mention 1-2 specific projects briefly if relevant
+- Read the resume carefully and pick the 2-3 skills most relevant to THIS specific role
+- Mention 1-2 specific projects from the resume briefly if they relate to the role
 - Professional, concise, enthusiastic tone
-- Focus on concrete value the candidate brings
+- Focus on concrete value the candidate brings based on their actual background
 - Do NOT list certificates explicitly — write as if skills are naturally demonstrated
 - End with a clear call to action
 
