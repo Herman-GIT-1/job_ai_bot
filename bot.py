@@ -2,11 +2,12 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
 
 from database import get_jobs_to_apply, get_job_link, mark_applied, get_stats
 from scraper import search_jobs
 from database import save_job
+from resume_parser import parse_resume, save_resume, load_resume, validate
 
 load_dotenv()
 
@@ -38,10 +39,50 @@ def _db_count():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Привет! Я бот для поиска работы.\n\n"
+        "/resume — показать текущее резюме\n"
         "/scrape — найти новые вакансии через SerpAPI\n"
         "/jobs — показать вакансии с оценкой ≥ 7\n"
-        "/stats — статистика по базе вакансий"
+        "/stats — статистика по базе вакансий\n\n"
+        "Чтобы загрузить резюме — отправь файл (.txt, .pdf, .docx)."
     )
+
+
+async def resume_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        text = load_resume()
+        preview = text[:600].strip()
+        await update.message.reply_text(
+            f"Текущее резюме ({len(text)} символов):\n\n{preview}"
+            + ("…" if len(text) > 600 else "")
+        )
+    except FileNotFoundError:
+        await update.message.reply_text("Резюме не найдено. Отправь файл (.txt, .pdf, .docx).")
+
+
+async def resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    doc = update.message.document
+    filename = doc.file_name or ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if ext not in ("txt", "pdf", "docx"):
+        await update.message.reply_text("Поддерживаются только .txt, .pdf, .docx.")
+        return
+
+    await update.message.reply_text("Обрабатываю файл…")
+    try:
+        tg_file = await doc.get_file()
+        file_bytes = await tg_file.download_as_bytearray()
+        text = parse_resume(bytes(file_bytes), filename)
+        validate(text)
+        save_resume(text)
+        await update.message.reply_text(
+            f"Резюме сохранено ✅ ({len(text)} символов).\n"
+            "Оно будет использоваться при следующем /scrape и оценке вакансий."
+        )
+    except (ValueError, ImportError) as e:
+        await update.message.reply_text(f"Ошибка: {e}")
+    except Exception as e:
+        await update.message.reply_text(f"Не удалось обработать файл: {e}")
 
 
 async def jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -101,9 +142,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("resume", resume_show))
     app.add_handler(CommandHandler("scrape", scrape))
     app.add_handler(CommandHandler("jobs", jobs))
     app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(MessageHandler(filters.Document.ALL, resume_upload))
     app.add_handler(CallbackQueryHandler(button))
     print("Бот запущен...")
     app.run_polling()
