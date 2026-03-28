@@ -1,0 +1,43 @@
+import os
+from groq import Groq
+from dotenv import load_dotenv
+
+load_dotenv()
+
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+with open(os.path.join(os.path.dirname(__file__), "resume.txt")) as f:
+    resume = f.read()
+
+def generate_letter(job):
+    tech_stack = job.get("tech_stack", "")
+    tech_info = f"Required tech stack: {tech_stack}" if tech_stack else ""
+
+    prompt = f"""Write a short cover letter (100-120 words) for this candidate applying to this job.
+
+Candidate Resume:
+{resume}
+
+Job: {job['title']} at {job['company']}
+{tech_info}
+
+Guidelines:
+- Highlight the most relevant skills for THIS specific role (Python, SQL, Power BI, ML, Flask — pick what fits)
+- Mention 1-2 specific projects briefly if relevant
+- Professional, concise, enthusiastic tone
+- Focus on concrete value the candidate brings
+- Do NOT list certificates explicitly — write as if skills are naturally demonstrated
+- End with a clear call to action
+
+Write only the cover letter text. No subject line, no placeholders."""
+
+    try:
+        response = client.chat.completions.create(
+            model="llama3-8b-8192",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"[Cover letter error] {e}")
+        return "Cover letter generation failed."

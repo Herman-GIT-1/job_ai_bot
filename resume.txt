@@ -1,0 +1,57 @@
+Herman Polianskyi
+
+
+ 
+
+Aleja Edukacji Narodowej 26 •Warsaw •hermanpolianskyi@gmail.com•+48 660167127
+www.linkedin.com/in/herman-polianskyi-8843bb386
+https://github.com/Herman-GIT-1
+
+Education
+WIT Akademy	Poland, Warsaw
+Bachelor’s in Information Technology and Management	10.2024-01.2028 
+Gained a solid foundation in databases, programming (Python, Java), data analysis, and IT solutions for business. Developed the ability to translate business problems into technical solutions and deliver actionable insights.
+Experience
+ 
+ 
+ Restaurant Employee – Instructor | 11.2024 – Present
+Trained new employees and ensured compliance with internal standards. Developed clear communication skills, responsibility, time-management skills in a fast-paced environment.
+
+Company Assistance (Unofficial) | 06.2022 – 09.2022
+Assisted with routine accounting tasks and worked with structured financial data. Developed attention to detail and basic analytical skills, as well as an understanding of how data is prepared for internal reporting.
+
+Assistant Director – Photography Studio | 05.2025 – Present
+Supported daily studio operations, organized schedules and tasks, and worked with client information. Developed responsibility, structured thinking, and organizational skills through communication with clients and team members.
+Projects & Activities
+
+Training Management Database | Oracle SQL & Data Modeling
+Designed a complete logical and relational database model for a training management system using Oracle Data Modeler. The project involved creating schemas, relationships, and enforcing data integrity, resulting in a robust database structure capable of supporting complex workflows and reporting needs.
+
+Educational Data Management | Java
+Developed a terminal-based application to manage educational data using object-oriented programming and menu-driven interactions. The project streamlined data management, implemented CRUD operations, and reinforced problem-solving and software development skills.
+
+Backend Web Application | Python & Flask
+Built a web application with relational database support (SQLite) and ORM via SQLAlchemy, implementing CRUD operations and integrating API logic with PayPal sandbox. This project enhanced my understanding of backend development, data modeling, and reliable data-driven application design.
+
+Sales Dashboard & Data Analysis | Power BI
+Created interactive dashboards using Power BI, Power Query, and DAX to transform raw data into actionable visual reports. The project demonstrated the ability to automate workflows, visualize complex datasets, and support decision-making with clear insights.
+Skills & Interests
+Programming & Analytics: Python (data processing, analysis, scripting, ML, automation), R (statistical analysis), SQL (PostgreSQL, MySQL, SQLite), Java (core understanding of software development and OOP)
+Data & BI Tools: Power BI (dashboards, DAX, data visualization), Alteryx (ETL, workflow automation)
+Data Management: Database design, data modeling, data cleaning and transformation
+Productivity Tools: Excel (formulas, pivot tables), Microsoft Fabric.
+Languages
+•	Russian – native
+•	Ukrainian – native
+•	English – advanced
+•	Polish – advanced.
+
+Certificates:
+IBM: Introduction to Data Analytics
+IBM: Python for Data Science, AI & Development
+Kaggle: Intro To SQL
+Kaggle: Advanced SQL 
+Kaggle: Python
+Kaggle: Machine learninng
+Alteryx:Designer Core Certification
+
