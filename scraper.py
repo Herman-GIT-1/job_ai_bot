@@ -1,42 +1,79 @@
-import requests
+import json
 import os
+import requests
 from dotenv import load_dotenv
+from groq import Groq
+from resume_parser import load_resume
 
 load_dotenv()
 
-# SerpApi — бесплатно 100 запросов/месяц
-# Регистрация: https://serpapi.com/ → API Key
 SERPAPI_KEY = os.environ.get("SERPAPI_KEY")
+_groq = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-SEARCHES = [
-    "junior python developer warszawa",
-    "data analyst intern warszawa",
-    "junior data analyst warszawa",
-    "machine learning intern warszawa",
-    "junior sql developer warszawa",
-    "python intern warszawa",
-    "data science intern warsaw poland",
-    "IT stażysta warszawa",
-]
 
-def is_relevant(title):
+def build_queries(resume_text: str) -> tuple[list[str], list[str]]:
+    """Ask Groq to produce search queries and tech keywords from the resume.
+    Returns (queries, tech_keywords)."""
+    prompt = f"""You are a job search assistant. Analyze this resume and return a JSON object with two keys:
+- "queries": list of 6-8 Google Jobs search strings for junior/intern positions in Warsaw, Poland.
+  Each query should combine a role and a key skill (e.g. "junior python developer warszawa").
+  Always include at least one query with "stażysta" or "praktykant" for Polish-language results.
+- "tech_keywords": list of 10-15 technology names mentioned or implied in the resume
+  (e.g. "Python", "SQL", "Power BI"). Used to scan job descriptions.
+
+Resume:
+{resume_text}
+
+Return ONLY valid JSON. No explanation."""
+
+    try:
+        response = _groq.chat.completions.create(
+            model="llama3-8b-8192",
+            max_tokens=400,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        data = json.loads(response.choices[0].message.content.strip())
+        queries = data.get("queries", [])
+        tech_keywords = data.get("tech_keywords", [])
+        if queries and tech_keywords:
+            return queries, tech_keywords
+    except Exception as e:
+        print(f"[Scraper] Не удалось сгенерировать запросы через AI: {e}")
+
+    # Fallback — generic queries so scraping still works without a resume
+    return [
+        "junior developer warszawa",
+        "intern IT warszawa",
+        "stażysta programista warszawa",
+    ], ["Python", "SQL", "Java", "JavaScript"]
+
+
+def is_relevant(title: str) -> bool:
     title = title.lower()
     return any(word in title for word in [
         "intern", "junior", "trainee", "stażyst", "praktyk", "staż"
     ])
 
-def search_jobs():
+
+def search_jobs() -> list[dict]:
     if not SERPAPI_KEY:
-        print("BŁĄD: Brak SERPAPI_KEY w pliku .env")
-        print("Zarejestruj się na https://serpapi.com/ (100 zapytań/miesiąc za darmo)")
+        print("[Scraper] Brak SERPAPI_KEY w pliku .env")
         return []
+
+    try:
+        resume_text = load_resume()
+    except FileNotFoundError:
+        resume_text = ""
+        print("[Scraper] resume.txt не найдено — используются базовые запросы.")
+
+    queries, tech_keywords = build_queries(resume_text)
+    print(f"[Scraper] Запросов: {len(queries)}, технологий в фильтре: {len(tech_keywords)}")
 
     jobs = []
     seen_links = set()
 
-    for query in SEARCHES:
-        print(f"Szukam: {query}")
-
+    for query in queries:
+        print(f"  Ищу: {query}")
         params = {
             "engine": "google_jobs",
             "q": query,
@@ -44,52 +81,30 @@ def search_jobs():
             "hl": "en",
             "api_key": SERPAPI_KEY,
         }
-
         try:
-            response = requests.get(
-                "https://serpapi.com/search",
-                params=params,
-                timeout=15
-            )
-            data = response.json()
-
-            results = data.get("jobs_results", [])
+            response = requests.get("https://serpapi.com/search", params=params, timeout=15)
+            results = response.json().get("jobs_results", [])
 
             for job in results:
                 title = job.get("title", "")
                 company = job.get("company_name", "Unknown")
-                link = ""
 
-                # Берём первую ссылку для подачи заявки
                 apply_options = job.get("apply_options", [])
-                if apply_options:
-                    link = apply_options[0].get("link", "")
+                link = apply_options[0].get("link", "") if apply_options else ""
 
-                # Пропускаем вакансии без ссылки — пустой link нарушил бы UNIQUE constraint
                 if not link:
                     continue
-
-                # Фильтр по junior/intern
                 if not is_relevant(title):
                     continue
-
-                # Дедупликация
-                key = f"{title}_{company}"
-                if key in seen_links:
+                if link in seen_links:
                     continue
-                seen_links.add(key)
+                seen_links.add(link)
 
-                # Собираем стек если есть в описании
                 description = job.get("description", "")
-                tech_keywords = ["Python", "SQL", "Power BI", "Excel", "R", "Tableau",
-                                 "Machine Learning", "pandas", "scikit-learn", "Flask",
-                                 "JavaScript", "Java", "Alteryx", "Spark"]
                 found_tech = [t for t in tech_keywords if t.lower() in description.lower()]
                 tech_stack = ", ".join(found_tech[:6])
 
-                # Проверяем remote
-                detected_extensions = job.get("detected_extensions", {})
-                remote = "remote" in str(detected_extensions).lower()
+                remote = "remote" in str(job.get("detected_extensions", {})).lower()
 
                 jobs.append({
                     "title": title,
@@ -97,11 +112,11 @@ def search_jobs():
                     "link": link,
                     "tech_stack": tech_stack,
                     "remote": remote,
-                    "city": "Warsaw"
+                    "city": "Warsaw",
                 })
 
         except Exception as e:
-            print(f"Błąd dla '{query}': {e}")
+            print(f"  [Ошибка] '{query}': {e}")
 
-    print(f"\nZnaleziono {len(jobs)} unikalnych ofert.")
+    print(f"\n[Scraper] Найдено уникальных вакансий: {len(jobs)}")
     return jobs
