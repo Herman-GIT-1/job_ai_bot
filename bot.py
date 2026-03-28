@@ -174,7 +174,8 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Всего вакансий: {s['total']}\n"
         f"Оценено: {s['scored']}\n"
         f"Средний score: {avg}\n"
-        f"Подано заявок: {s['applied']}"
+        f"Подано заявок: {s['applied']}\n"
+        f"Пропущено: {s['skipped']}"
     )
 
 
@@ -198,11 +199,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     elif action == "apply":
         link = get_job_link(job_id)
-        mark_applied(job_id)
+        mark_applied(job_id, status=1)
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(f"Заявка отмечена ✅\n🔗 {link}")
     else:
-        mark_applied(job_id)
+        mark_applied(job_id, status=2)
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text("Пропущено ❌")
 

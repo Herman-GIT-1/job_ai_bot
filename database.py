@@ -55,8 +55,9 @@ def get_jobs_to_apply():
     return cursor.fetchall()
 
 
-def mark_applied(job_id):
-    cursor.execute("UPDATE jobs SET applied=1 WHERE id=?", (job_id,))
+def mark_applied(job_id, status=1):
+    """status: 1 = applied, 2 = skipped"""
+    cursor.execute("UPDATE jobs SET applied=? WHERE id=?", (status, job_id))
     conn.commit()
 
 
@@ -89,4 +90,6 @@ def get_stats():
     avg = cursor.fetchone()[0]
     cursor.execute("SELECT COUNT(*) FROM jobs WHERE applied=1")
     applied = cursor.fetchone()[0]
-    return {"total": total, "scored": scored, "avg_score": avg, "applied": applied}
+    cursor.execute("SELECT COUNT(*) FROM jobs WHERE applied=2")
+    skipped = cursor.fetchone()[0]
+    return {"total": total, "scored": scored, "avg_score": avg, "applied": applied, "skipped": skipped}
