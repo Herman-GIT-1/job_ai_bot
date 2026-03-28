@@ -3,7 +3,7 @@ import sqlite3
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "jobs.db")
 
-conn = sqlite3.connect(DB_PATH)
+conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 cursor = conn.cursor()
 
 cursor.execute("""

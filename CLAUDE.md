@@ -18,7 +18,7 @@ cover letters, and notifies the user via Telegram.
 | Component | Tool | Note |
 |---|---|---|
 | Job source | SerpAPI (Google Jobs) | Free tier: 100 req/month — prototype only |
-| AI model | Groq `llama3-8b-8192` | Free — prototype only, lower quality than Claude/GPT |
+| AI model | Groq `llama-3.1-8b-instant` | Free — prototype only, lower quality than Claude/GPT |
 | Database | SQLite (`jobs.db`) | Local only, single user |
 | Notifications | Telegram Bot (python-telegram-bot) | Single user (hardcoded chat_id) |
 | Env management | python-dotenv | |
