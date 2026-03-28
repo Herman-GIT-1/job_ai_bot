@@ -68,6 +68,12 @@ def update_job(job_id, score, letter):
     conn.commit()
 
 
+def get_job_link(job_id: int):
+    cursor.execute("SELECT link FROM jobs WHERE id=?", (job_id,))
+    row = cursor.fetchone()
+    return row[0] if row else None
+
+
 def get_stats():
     cursor.execute("SELECT COUNT(*) FROM jobs")
     total = cursor.fetchone()[0]

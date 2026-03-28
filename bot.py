@@ -1,19 +1,9 @@
 import os
-import sqlite3
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-from database import get_jobs_to_apply, mark_applied, get_stats
-
-DB_PATH = os.path.join(os.path.dirname(__file__), "jobs.db")
-
-
-def get_job_link(job_id: int) -> str | None:
-    db = sqlite3.connect(DB_PATH)
-    row = db.execute("SELECT link FROM jobs WHERE id=?", (job_id,)).fetchone()
-    db.close()
-    return row[0] if row else None
+from database import get_jobs_to_apply, get_job_link, mark_applied, get_stats
 
 load_dotenv()
 
