@@ -1,6 +1,9 @@
+import os
 import sqlite3
 
-conn = sqlite3.connect("jobs.db")
+DB_PATH = os.path.join(os.path.dirname(__file__), "jobs.db")
+
+conn = sqlite3.connect(DB_PATH)
 cursor = conn.cursor()
 
 cursor.execute("""
