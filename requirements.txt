@@ -1,0 +1,6 @@
+requests
+groq
+python-dotenv
+python-telegram-bot
+pypdf
+python-docx
