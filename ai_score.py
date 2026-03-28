@@ -12,7 +12,7 @@ def evaluate(job):
     tech_stack = job.get("tech_stack", "")
     tech_info = f"Tech stack: {tech_stack}" if tech_stack else ""
 
-    prompt = f"""You are a senior recruiter evaluating how well a candidate fits a job opening.
+    prompt = f"""You are a senior recruiter. Score how well this candidate fits the job opening.
 
 ## Candidate Resume:
 {resume}
@@ -22,12 +22,13 @@ Title: {job["title"]}
 Company: {job.get("company", "Unknown")}
 {tech_info}
 
-## Scoring Criteria (0–10):
-1. Technical skills match — Python, SQL, Power BI, ML, data analysis, backend
-2. Seniority fit — is intern/junior/trainee level appropriate?
-3. Project relevance — do candidate's projects match this role?
-4. Education alignment — is IT/data degree relevant?
-5. Overall potential — self-learning, initiative, certifications
+## Instructions:
+Analyze the resume and the job, then score the match from 0 to 10 based on:
+1. Technical skills overlap — compare the candidate's actual skills with what the job requires
+2. Seniority fit — does the role level (intern/junior/mid) match the candidate's experience?
+3. Domain relevance — do the candidate's projects and background relate to this role?
+4. Education fit — is the candidate's field of study relevant?
+5. Growth potential — certifications, side projects, self-learning
 
 ## Scoring Guide:
 - 9–10: Excellent fit
