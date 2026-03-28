@@ -6,7 +6,7 @@
 
 ### 1. Установить зависимости
 ```bash
-pip install requests groq python-dotenv serpapi
+pip install requests groq python-dotenv python-telegram-bot
 ```
 
 ### 2. Получить API ключи
@@ -25,6 +25,8 @@ pip install requests groq python-dotenv serpapi
 ```env
 GROQ_API_KEY=your_groq_api_key_here
 SERPAPI_KEY=your_serpapi_key_here
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+TELEGRAM_CHAT_ID=your_telegram_chat_id_here
 ```
 
 ## Переменные окружения
@@ -33,6 +35,8 @@ SERPAPI_KEY=your_serpapi_key_here
 |---|---|---|
 | `GROQ_API_KEY` | console.groq.com | LLM API для оценки вакансий и генерации cover letter |
 | `SERPAPI_KEY` | serpapi.com | Поиск вакансий через Google Jobs (100 запросов/месяц бесплатно) |
+| `TELEGRAM_BOT_TOKEN` | @BotFather в Telegram | Токен Telegram-бота |
+| `TELEGRAM_CHAT_ID` | @userinfobot в Telegram | Твой личный chat ID |
 
 ### 4. Запуск
 
@@ -45,6 +49,9 @@ python main.py --score
 
 # Открыть лучшие вакансии (score >= 7) в браузере
 python main.py --apply
+
+# Запустить Telegram-бот
+python main.py --bot
 
 # Всё сразу
 python main.py --all
