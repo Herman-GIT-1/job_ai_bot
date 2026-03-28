@@ -36,13 +36,19 @@ def _db_count():
     return conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
 
 
+async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Останавливаю бота...")
+    await context.application.stop()
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Привет! Я бот для поиска работы.\n\n"
         "/resume — показать текущее резюме\n"
         "/scrape — найти новые вакансии через SerpAPI\n"
         "/jobs — показать вакансии с оценкой ≥ 7\n"
-        "/stats — статистика по базе вакансий\n\n"
+        "/stats — статистика по базе вакансий\n"
+        "/stop — остановить бота\n\n"
         "Чтобы загрузить резюме — отправь файл (.txt, .pdf, .docx)."
     )
 
@@ -142,6 +148,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("stop", stop))
     app.add_handler(CommandHandler("resume", resume_show))
     app.add_handler(CommandHandler("scrape", scrape))
     app.add_handler(CommandHandler("jobs", jobs))
