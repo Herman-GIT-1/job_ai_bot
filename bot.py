@@ -5,10 +5,12 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
                           MessageHandler, ConversationHandler, filters, ContextTypes)
 
-from database import get_jobs_to_apply, get_job_link, mark_applied, get_stats
+from database import get_jobs_to_apply, get_job_link, mark_applied, get_stats, get_jobs, update_job
 from scraper import search_jobs
 from database import save_job
 from resume_parser import parse_resume, save_resume, load_resume, validate
+from ai_score import evaluate
+from cover_letter import generate_letter
 
 load_dotenv()
 
@@ -16,6 +18,26 @@ TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
 
 ASK_CITY = 0
+
+
+async def score(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    pending = get_jobs()
+    if not pending:
+        await update.message.reply_text("Нет вакансий для оценки. Сначала запусти /scrape.")
+        return
+    await update.message.reply_text(f"Оцениваю {len(pending)} вакансий... это займёт несколько минут.")
+
+    def _run():
+        for job_id, title, company, _link, tech_stack in pending:
+            job = {"title": title, "company": company, "tech_stack": tech_stack}
+            update_job(job_id, evaluate(job), generate_letter(job))
+
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _run)
+    await update.message.reply_text(
+        f"Готово. Оценено вакансий: {len(pending)}.\n"
+        "Запусти /jobs чтобы увидеть лучшие."
+    )
 
 
 async def scrape_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -65,6 +87,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Привет! Я бот для поиска работы.\n\n"
         "/resume — показать текущее резюме\n"
         "/scrape — найти новые вакансии через SerpAPI\n"
+        "/score — оценить найденные вакансии через AI\n"
         "/jobs — показать вакансии с оценкой ≥ 7\n"
         "/stats — статистика по базе вакансий\n"
         "/stop — остановить бота\n\n"
@@ -175,6 +198,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stop", stop))
     app.add_handler(CommandHandler("resume", resume_show))
+    app.add_handler(CommandHandler("score", score))
     app.add_handler(scrape_conv)
     app.add_handler(CommandHandler("jobs", jobs))
     app.add_handler(CommandHandler("stats", stats))
