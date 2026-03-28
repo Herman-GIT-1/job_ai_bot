@@ -65,6 +65,10 @@ def search_jobs():
                 if apply_options:
                     link = apply_options[0].get("link", "")
 
+                # Пропускаем вакансии без ссылки — пустой link нарушил бы UNIQUE constraint
+                if not link:
+                    continue
+
                 # Фильтр по junior/intern
                 if not is_relevant(title):
                     continue
