@@ -2,7 +2,8 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
+                          MessageHandler, ConversationHandler, filters, ContextTypes)
 
 from database import get_jobs_to_apply, get_job_link, mark_applied, get_stats
 from scraper import search_jobs
@@ -14,11 +15,23 @@ load_dotenv()
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
 
+ASK_CITY = 0
 
-async def scrape(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Ищу вакансии... это займёт ~30 секунд.")
+
+async def scrape_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "В каком городе искать вакансии?\n"
+        "Например: Warszawa, Kraków, Wrocław, Gdańsk, Poznań\n\n"
+        "Или /cancel чтобы отменить."
+    )
+    return ASK_CITY
+
+
+async def scrape_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    city = update.message.text.strip()
+    await update.message.reply_text(f"Ищу вакансии в городе {city}... это займёт ~30 секунд.")
     loop = asyncio.get_event_loop()
-    jobs = await loop.run_in_executor(None, search_jobs)
+    jobs = await loop.run_in_executor(None, search_jobs, city)
     saved = 0
     for job in jobs:
         before = _db_count()
@@ -27,8 +40,14 @@ async def scrape(update: Update, context: ContextTypes.DEFAULT_TYPE):
             saved += 1
     await update.message.reply_text(
         f"Готово. Найдено: {len(jobs)}, новых в базе: {saved}.\n"
-        f"Запусти /jobs чтобы увидеть лучшие вакансии."
+        "Запусти /jobs чтобы увидеть лучшие вакансии."
     )
+    return ConversationHandler.END
+
+
+async def scrape_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Поиск отменён.")
+    return ConversationHandler.END
 
 
 def _db_count():
@@ -147,10 +166,16 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     app = Application.builder().token(TOKEN).build()
+    scrape_conv = ConversationHandler(
+        entry_points=[CommandHandler("scrape", scrape_ask_city)],
+        states={ASK_CITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, scrape_run)]},
+        fallbacks=[CommandHandler("cancel", scrape_cancel)],
+    )
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stop", stop))
     app.add_handler(CommandHandler("resume", resume_show))
-    app.add_handler(CommandHandler("scrape", scrape))
+    app.add_handler(scrape_conv)
     app.add_handler(CommandHandler("jobs", jobs))
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(MessageHandler(filters.Document.ALL, resume_upload))

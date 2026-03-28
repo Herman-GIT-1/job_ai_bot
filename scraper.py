@@ -11,12 +11,12 @@ SERPAPI_KEY = os.environ.get("SERPAPI_KEY")
 _groq = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 
-def build_queries(resume_text: str) -> tuple[list[str], list[str]]:
+def build_queries(resume_text: str, city: str) -> tuple[list[str], list[str]]:
     """Ask Groq to produce search queries and tech keywords from the resume.
     Returns (queries, tech_keywords)."""
     prompt = f"""You are a job search assistant. Analyze this resume and return a JSON object with two keys:
-- "queries": list of 6-8 Google Jobs search strings for junior/intern positions in Warsaw, Poland.
-  Each query should combine a role and a key skill (e.g. "junior python developer warszawa").
+- "queries": list of 6-8 Google Jobs search strings for junior/intern positions in {city}.
+  Each query should combine a role and a key skill (e.g. "junior python developer {city.lower()}").
   Always include at least one query with "stażysta" or "praktykant" for Polish-language results.
 - "tech_keywords": list of 10-15 technology names mentioned or implied in the resume
   (e.g. "Python", "SQL", "Power BI"). Used to scan job descriptions.
@@ -42,9 +42,9 @@ Return ONLY valid JSON. No explanation."""
 
     # Fallback — generic queries so scraping still works without a resume
     return [
-        "junior developer warszawa",
-        "intern IT warszawa",
-        "stażysta programista warszawa",
+        f"junior developer {city.lower()}",
+        f"intern IT {city.lower()}",
+        f"stażysta programista {city.lower()}",
     ], ["Python", "SQL", "Java", "JavaScript"]
 
 
@@ -55,7 +55,7 @@ def is_relevant(title: str) -> bool:
     ])
 
 
-def search_jobs() -> list[dict]:
+def search_jobs(city: str = "Warsaw, Poland") -> list[dict]:
     if not SERPAPI_KEY:
         print("[Scraper] Brak SERPAPI_KEY w pliku .env")
         return []
@@ -66,7 +66,7 @@ def search_jobs() -> list[dict]:
         resume_text = ""
         print("[Scraper] resume.txt не найдено — используются базовые запросы.")
 
-    queries, tech_keywords = build_queries(resume_text)
+    queries, tech_keywords = build_queries(resume_text, city)
     print(f"[Scraper] Запросов: {len(queries)}, технологий в фильтре: {len(tech_keywords)}")
 
     jobs = []
@@ -77,7 +77,7 @@ def search_jobs() -> list[dict]:
         params = {
             "engine": "google_jobs",
             "q": query,
-            "location": "Warsaw, Poland",
+            "location": city,
             "hl": "en",
             "api_key": SERPAPI_KEY,
         }
