@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
                           MessageHandler, ConversationHandler, filters, ContextTypes)
 
-from database import get_jobs_to_apply, get_job_link, mark_applied, get_stats, get_jobs, update_job
+from database import get_jobs_to_apply, get_job_link, get_cover_letter, mark_applied, get_stats, get_jobs, update_job
 from scraper import search_jobs
 from database import save_job
 from resume_parser import parse_resume, save_resume, load_resume, validate
@@ -160,6 +160,7 @@ async def jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [
                 InlineKeyboardButton("Подать ✅", callback_data=f"apply:{job_id}"),
                 InlineKeyboardButton("Пропустить ❌", callback_data=f"skip:{job_id}"),
+                InlineKeyboardButton("Письмо 📄", callback_data=f"letter:{job_id}"),
             ]
         ])
         await update.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
@@ -184,7 +185,18 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     action, job_id = query.data.split(":")
     job_id = int(job_id)
 
-    if action == "apply":
+    if action == "letter":
+        row = get_cover_letter(job_id)
+        if not row or not row[2]:
+            await query.answer("Письмо не найдено.", show_alert=True)
+            return
+        title, company, letter = row
+        filename = f"cover_letter_{company}_{title}.txt".replace(" ", "_").replace("/", "-")
+        await query.message.reply_document(
+            document=letter.encode("utf-8"),
+            filename=filename,
+        )
+    elif action == "apply":
         link = get_job_link(job_id)
         mark_applied(job_id)
         await query.edit_message_reply_markup(reply_markup=None)

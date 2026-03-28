@@ -68,6 +68,12 @@ def update_job(job_id, score, letter):
     conn.commit()
 
 
+def get_cover_letter(job_id: int):
+    cursor.execute("SELECT title, company, cover_letter FROM jobs WHERE id=?", (job_id,))
+    row = cursor.fetchone()
+    return row if row else None
+
+
 def get_job_link(job_id: int):
     cursor.execute("SELECT link FROM jobs WHERE id=?", (job_id,))
     row = cursor.fetchone()
