@@ -6,7 +6,7 @@ from cover_letter import generate_letter as generate
 from open_jobs import open_jobs
 
 def run_scrape():
-    print("=== Поиск вакансий на JustJoin.it ===")
+    print("=== Поиск вакансий через SerpAPI ===")
     jobs = search_jobs()
     print(f"Сохраняем в базу...")
     for job in jobs:
