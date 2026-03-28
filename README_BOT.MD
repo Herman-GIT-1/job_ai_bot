@@ -5,7 +5,7 @@
 ## Установка
 
 ```bash
-pip install requests groq python-dotenv python-telegram-bot
+pip install requests groq python-dotenv python-telegram-bot pypdf python-docx
 ```
 
 ## Настройка
@@ -34,6 +34,13 @@ python main.py --score    # AI-оценка + генерация cover letter
 python main.py --apply    # открыть лучшие вакансии (score >= 7) в браузере
 python main.py --bot      # запустить Telegram-бот
 python main.py --all      # scrape + score + apply последовательно
+
+# Команды Telegram-бота:
+# /resume        — показать текущее резюме
+# /scrape        — запустить поиск вакансий прямо из бота
+# /jobs          — вакансии с оценкой ≥ 7 с кнопками Подать / Пропустить
+# /stats         — статистика базы
+# <файл>         — отправь .txt / .pdf / .docx чтобы обновить резюме
 ```
 
 ## Как работает
