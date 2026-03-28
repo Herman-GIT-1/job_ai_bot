@@ -1,9 +1,12 @@
+import asyncio
 import os
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 from database import get_jobs_to_apply, get_job_link, mark_applied, get_stats
+from scraper import search_jobs
+from database import save_job
 
 load_dotenv()
 
@@ -11,9 +14,31 @@ TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
 
 
+async def scrape(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Ищу вакансии... это займёт ~30 секунд.")
+    loop = asyncio.get_event_loop()
+    jobs = await loop.run_in_executor(None, search_jobs)
+    saved = 0
+    for job in jobs:
+        before = _db_count()
+        save_job(job)
+        if _db_count() > before:
+            saved += 1
+    await update.message.reply_text(
+        f"Готово. Найдено: {len(jobs)}, новых в базе: {saved}.\n"
+        f"Запусти /jobs чтобы увидеть лучшие вакансии."
+    )
+
+
+def _db_count():
+    from database import conn
+    return conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Привет! Я бот для поиска работы.\n\n"
+        "/scrape — найти новые вакансии через SerpAPI\n"
         "/jobs — показать вакансии с оценкой ≥ 7\n"
         "/stats — статистика по базе вакансий"
     )
@@ -76,6 +101,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("scrape", scrape))
     app.add_handler(CommandHandler("jobs", jobs))
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CallbackQueryHandler(button))
