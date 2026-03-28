@@ -5,7 +5,7 @@
 ## Установка
 
 ```bash
-pip install requests groq python-dotenv python-telegram-bot pypdf python-docx
+pip install -r requirements.txt
 ```
 
 ## Настройка
@@ -34,24 +34,38 @@ python main.py --score    # AI-оценка + генерация cover letter
 python main.py --apply    # открыть лучшие вакансии (score >= 7) в браузере
 python main.py --bot      # запустить Telegram-бот
 python main.py --all      # scrape + score + apply последовательно
-
-# Команды Telegram-бота:
-# /resume        — показать текущее резюме
-# /scrape        — запустить поиск вакансий прямо из бота
-# /jobs          — вакансии с оценкой ≥ 7 с кнопками Подать / Пропустить
-# /stats         — статистика базы
-# <файл>         — отправь .txt / .pdf / .docx чтобы обновить резюме
 ```
+
+## Команды Telegram-бота
+
+| Команда | Действие |
+|---|---|
+| `/start` | Приветствие и список команд |
+| `/resume` | Показать текущее резюме (первые 600 символов) |
+| `/scrape` | Найти новые вакансии (спросит город) |
+| `/score` | AI-оценка + cover letter для всех новых вакансий |
+| `/jobs` | Вакансии с оценкой ≥ 7, кнопки: Подать / Пропустить / Письмо |
+| `/stats` | Статистика: найдено, оценено, подано, пропущено |
+| `/stop` | Остановить бота |
+| `<файл>` | Загрузить резюме (.txt / .pdf / .docx) |
+
+При нажатии **Письмо 📄** бот отправляет cover letter как `.txt` файл, не меняя статус вакансии.
 
 ## Как работает
 
 ```
-SerpAPI (Google Jobs) → scraper.py → database.py (SQLite)
-                                           ↓
-                                    ai_score.py (Groq)
-                                    cover_letter.py (Groq)
-                                           ↓
-                              bot.py (Telegram) / open_jobs.py (браузер)
+resume.txt ──────────────────────────────────────────────┐
+                                                          ↓
+SerpAPI (Google Jobs) ← запросы от Groq ← scraper.py ← resume
+                ↓
+          database.py (SQLite)
+                ↓
+     ai_score.py + cover_letter.py (Groq)
+                ↓
+     bot.py (Telegram) / open_jobs.py (браузер)
 ```
 
-`--scrape` выполняет 8 поисковых запросов (junior developer, data analyst и др. по Варшаве) и сохраняет ~50+ уникальных вакансий. Каждый запрос расходует 1 из 100 бесплатных запросов SerpAPI в месяц.
+- `/scrape` просит Groq сгенерировать поисковые запросы на основе резюме и выбранного города
+- Запросы уходят в SerpAPI, результаты сохраняются в `jobs.db`
+- `/score` оценивает каждую новую вакансию (0–10) и генерирует cover letter
+- `/jobs` показывает вакансии с оценкой ≥ 7, не отмеченные как поданные или пропущенные

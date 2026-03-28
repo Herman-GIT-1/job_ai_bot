@@ -18,7 +18,7 @@ cover letters, and notifies the user via Telegram.
 | Component | Tool | Note |
 |---|---|---|
 | Job source | SerpAPI (Google Jobs) | Free tier: 100 req/month — prototype only |
-| AI model | Groq `llama-3.1-8b-instant` | Free — prototype only, lower quality than Claude/GPT |
+| AI model | Groq `llama-3.1-8b-instant` | Free — prototype only; replace with Claude API at Stage 2 |
 | Database | SQLite (`jobs.db`) | Local only, single user |
 | Notifications | Telegram Bot (python-telegram-bot) | Single user (hardcoded chat_id) |
 | Env management | python-dotenv | |
@@ -54,6 +54,8 @@ python main.py --bot      # Start Telegram bot
 python main.py --all      # Run scrape + score + apply sequentially
 ```
 
+Telegram bot commands: `/start` `/resume` `/scrape` `/score` `/jobs` `/stats` `/stop` + document upload (`.txt`/`.pdf`/`.docx`).
+
 ---
 
 ## Architecture (Current)
@@ -83,7 +85,7 @@ SerpAPI → scraper.py → database.py (SQLite)
 
 - **Resume context** — `resume.txt` is read fresh on every call inside `ai_score.py`, `cover_letter.py`, and `scraper.py` via `resume_parser.load_resume()`. Uploading a new resume via bot takes effect immediately without restart.
 - **Search queries** — generated dynamically by Groq from resume content on each `/scrape`. Falls back to 3 generic queries if resume is missing or Groq fails.
-- **Database schema** — `jobs` table: `id, title, company, link, tech_stack, remote, city, score, cover_letter, applied`. `link` has UNIQUE constraint. No migrations system — schema changes require `ALTER TABLE` or deleting `jobs.db`.
+- **Database schema** — `jobs` table: `id, title, company, link, tech_stack, remote, city, score, cover_letter, applied`. `link` has UNIQUE constraint. `applied`: 0=pending, 1=applied, 2=skipped. No migrations system — schema changes require `ALTER TABLE` or deleting `jobs.db`.
 - **SerpAPI quota** — 100 free requests/month. Each `--scrape` run consumes N requests equal to the number of generated queries (~6–8).
 - **No test suite** — manual testing only.
 
