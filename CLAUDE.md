@@ -1,48 +1,227 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-Python-based job search automation bot for finding IT internships/junior positions, scoring them via AI, and generating personalized cover letters.
+AI-powered job search automation for IT internships and junior positions in Poland.
+The bot scrapes vacancies, scores them against a candidate's resume, generates personalized
+cover letters, and notifies the user via Telegram.
+
+**Current stage:** MVP / local prototype — single user, free-tier APIs, no server.
+**Target:** Multi-user SaaS product with web interface and paid API integrations.
+
+---
+
+## Current Stack (MVP / Testing only)
+
+| Component | Tool | Note |
+|---|---|---|
+| Job source | SerpAPI (Google Jobs) | Free tier: 100 req/month — prototype only |
+| AI model | Groq `llama3-8b-8192` | Free — prototype only, lower quality than Claude/GPT |
+| Database | SQLite (`jobs.db`) | Local only, single user |
+| Notifications | Telegram Bot (python-telegram-bot) | Single user (hardcoded chat_id) |
+| Env management | python-dotenv | |
+
+> ⚠️ **Groq and SerpAPI are temporary.** They exist only to validate the pipeline without cost.
+> Before any public launch, both must be replaced (see Scaling Plan below).
+
+---
 
 ## Setup
 
 ```bash
-pip install requests groq python-dotenv
+pip install requests groq python-dotenv python-telegram-bot
 ```
 
 Create `.env` in project root:
 ```
-GROQ_API_KEY=<key from console.groq.com>
-SERPAPI_KEY=<key from serpapi.com>
+GROQ_API_KEY=        # console.groq.com — free
+SERPAPI_KEY=         # serpapi.com — free 100 req/month
+TELEGRAM_BOT_TOKEN=  # from @BotFather on Telegram
+TELEGRAM_CHAT_ID=    # your personal Telegram chat ID
 ```
+
+---
 
 ## Commands
 
 ```bash
-python main.py --scrape   # Search jobs via SerpAPI → save to jobs.db
-python main.py --score    # Score jobs with Groq AI + generate cover letters
+python main.py --scrape   # Fetch jobs via SerpAPI → save to jobs.db
+python main.py --score    # Score jobs with AI + generate cover letters
 python main.py --apply    # Open top-scored jobs (score >= 7) in browser
-python main.py --all      # Run all three stages sequentially
+python main.py --bot      # Start Telegram bot
+python main.py --all      # Run scrape + score + apply sequentially
 ```
 
-## Architecture
+---
 
-Pipeline: **SerpAPI → scraper.py → database.py (SQLite) → ai_score.py + cover_letter.py → open_jobs.py → browser**
+## Architecture (Current)
+
+```
+SerpAPI → scraper.py → database.py (SQLite)
+                              ↓
+                    ai_score.py + cover_letter.py (Groq)
+                              ↓
+                    bot.py (Telegram) / open_jobs.py (browser)
+```
 
 | Module | Role |
 |---|---|
 | `main.py` | CLI entry point (`argparse`), orchestrates pipeline stages |
-| `scraper.py` | Fetches jobs from SerpAPI (Google Jobs engine), deduplicates, extracts tech stack keywords |
-| `database.py` | SQLite wrapper (`jobs.db`): schema with score, cover_letter, applied columns |
-| `ai_score.py` | Groq LLM (`llama3-8b-8192`) scores each job 0–10 based on `resume.txt` |
-| `cover_letter.py` | Groq LLM generates 100–120 word tailored cover letters per job |
-| `open_jobs.py` | Opens jobs with score ≥ 7 in browser, marks applied after manual confirmation |
+| `scraper.py` | Fetches jobs from SerpAPI, deduplicates, extracts tech stack keywords |
+| `database.py` | SQLite wrapper: schema with score, cover_letter, applied columns |
+| `ai_score.py` | AI scores each job 0–10 based on `resume.txt` |
+| `cover_letter.py` | AI generates 100–120 word tailored cover letters per job |
+| `open_jobs.py` | Opens jobs with score ≥ 7 in browser, marks applied after confirmation |
+| `bot.py` | Telegram bot: sends top jobs with inline buttons (Apply / Skip), /stats command |
+
+---
 
 ## Key Details
 
-- **Resume context** — `resume.txt` is read by both `ai_score.py` and `cover_letter.py` and injected into prompts. Updating this file changes how all future scoring/letters behave.
-- **Database schema** — `jobs` table columns: `id, title, company, link, tech_stack, remote, city, score, cover_letter, applied`. No migrations system — schema changes require manual `ALTER TABLE` or deleting `jobs.db`.
-- **SerpAPI quota** — 100 free requests/month. `scraper.py` runs 6 keyword searches per invocation, consuming 6 requests.
-- **No test suite** — manual testing only; run commands directly to verify behavior.
+- **Resume context** — `resume.txt` is read by `ai_score.py` and `cover_letter.py` and injected
+  into every prompt. Updating this file changes all future scoring and letter generation.
+- **Database schema** — `jobs` table: `id, title, company, link, tech_stack, remote, city,
+  score, cover_letter, applied`. No migrations system — schema changes require `ALTER TABLE`
+  or deleting `jobs.db`.
+- **SerpAPI quota** — 100 free requests/month. Each `--scrape` run consumes ~6–8 requests.
+- **No test suite** — manual testing only.
+
+---
+
+## Scaling Plan
+
+This section describes the intended evolution of the project.
+When making changes, avoid decisions that block the transitions below.
+
+### Stage 1 — MVP (now)
+- Single user, runs locally
+- Free APIs: Groq + SerpAPI
+- Telegram bot for notifications
+- SQLite database
+
+### Stage 2 — Multi-user Beta
+**Trigger:** first external users onboarding
+
+Planned changes:
+- Replace **SQLite → PostgreSQL** (one DB, user_id per row)
+- Replace **Groq → Anthropic Claude API** (`claude-sonnet`) for scoring and letter generation
+- Replace **SerpAPI → JustJoin.it public API** or another reliable job source without quota limits
+- Add **FastAPI backend** for user registration and resume upload
+- Add **Celery + Redis** for async per-user job processing
+- Each user has own `resume.txt` stored server-side
+- Deploy to **Railway.app** or VPS (bot runs 24/7)
+
+### Stage 3 — Web Product
+**Trigger:** stable multi-user flow validated
+
+Planned changes:
+- Web interface (React or simple HTML) for account management and job dashboard
+- User onboarding via Telegram `/start` → resume upload flow
+- Subscription model (free tier + paid)
+- Analytics per user (jobs found, applied, response rate)
+
+---
+
+## Git Workflow
+
+**After every change — commit. No exceptions.**
+
+Claude Code must create a git commit after completing any task that modifies files.
+
+### Commit format
+```
+<type>: <short description in English>
+```
+
+Types:
+- `fix` — bug fix
+- `feat` — new feature or module
+- `refactor` — restructuring without behavior change
+- `docs` — documentation only (README, CLAUDE.md)
+- `chore` — dependencies, .env.example, config
+
+### Examples
+```
+feat: add Telegram bot with inline apply/skip buttons
+fix: add cover_letter column to jobs table schema
+refactor: move resume path resolution to use __file__
+docs: update CLAUDE.md with scaling plan
+chore: add TELEGRAM_BOT_TOKEN to .env.example
+```
+
+### Rules
+- One logical change = one commit. Don't bundle unrelated changes.
+- Never commit `.env` or `jobs.db` — these are in `.gitignore`.
+- If a task touches multiple modules, still one commit per logical unit.
+- If unsure about commit message — ask, don't skip the commit.
+
+---
+
+## Multi-User Architecture Rules
+
+The bot is currently single-user (hardcoded `CHAT_ID`), but must be built
+user-aware from the start to avoid painful rewrites later.
+
+### Core rule
+**Never treat `CHAT_ID` as a global constant in logic.** Always pass it as a
+parameter or read it from a user object.
+
+```python
+# ❌ Wrong — hardcoded, breaks with multiple users
+CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+await bot.send_message(CHAT_ID, text)
+
+# ✅ Correct — user-aware, scales to any number of users
+await bot.send_message(user.chat_id, text)
+```
+
+### User identity
+Every user is identified by `chat_id` (Telegram's unique ID per chat).
+When the database moves to PostgreSQL, every table that is currently
+single-user must gain a `user_id` or `chat_id` foreign key:
+
+```
+users (chat_id, username, resume_text, created_at)
+jobs  (id, chat_id → users, title, company, ...)
+```
+
+### Onboarding flow (when opening to external users)
+```
+/start → bot asks to upload resume (.txt or .pdf)
+       → saves chat_id + resume to DB
+       → confirms: "Scout is ready. Use /jobs to see matches."
+```
+
+### Access control stages
+- **Now (MVP):** single user via `CHAT_ID` in `.env` — acceptable for personal use
+- **Beta:** whitelist of `chat_id` values, manual approval
+- **Launch:** open registration via `/start` with resume upload
+
+### What Claude Code must never do
+- Hardcode `CHAT_ID` inside functions or module-level logic
+- Store resume as a single global file when adding multi-user features
+- Write DB queries without `WHERE chat_id = ?` when user context exists
+
+---
+
+## Module Replacement Guide
+
+When replacing temporary modules, follow these contracts:
+
+**Replacing Groq (`ai_score.py`, `cover_letter.py`):**
+- `evaluate(job: dict) → int` must return integer 0–10
+- `generate_letter(job: dict) → str` must return plain text string
+- Model, client and API key are internal to each module
+
+**Replacing SerpAPI (`scraper.py`):**
+- `search_jobs() → list[dict]` must return list of dicts with keys:
+  `title, company, link, tech_stack, remote, city`
+
+**Replacing SQLite (`database.py`):**
+- Public interface must stay identical:
+  `save_job()`, `get_jobs()`, `get_jobs_to_apply()`, `mark_applied()`, `update_job()`
+- Internals (connection, cursor) are implementation details
+
+> Keeping these interfaces stable means swapping one module never breaks others.
