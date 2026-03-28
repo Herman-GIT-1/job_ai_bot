@@ -21,21 +21,29 @@ ASK_CITY = 0
 
 
 async def score(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        load_resume()
+    except FileNotFoundError:
+        await update.message.reply_text("Резюме не найдено. Отправь файл (.txt, .pdf, .docx) и повтори.")
+        return
+
     pending = get_jobs()
     if not pending:
         await update.message.reply_text("Нет вакансий для оценки. Сначала запусти /scrape.")
         return
-    await update.message.reply_text(f"Оцениваю {len(pending)} вакансий... это займёт несколько минут.")
 
-    def _run():
-        for job_id, title, company, _link, tech_stack in pending:
-            job = {"title": title, "company": company, "tech_stack": tech_stack}
-            update_job(job_id, evaluate(job), generate_letter(job))
+    total = len(pending)
+    status_msg = await update.message.reply_text(f"Оцениваю 0/{total}...")
 
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, _run)
-    await update.message.reply_text(
-        f"Готово. Оценено вакансий: {len(pending)}.\n"
+    for i, (job_id, title, company, _link, tech_stack) in enumerate(pending, 1):
+        job = {"title": title, "company": company, "tech_stack": tech_stack}
+        await loop.run_in_executor(None, lambda j=job, jid=job_id: update_job(jid, evaluate(j), generate_letter(j)))
+        if i % 5 == 0 or i == total:
+            await status_msg.edit_text(f"Оцениваю {i}/{total}...")
+
+    await status_msg.edit_text(
+        f"Готово. Оценено вакансий: {total}.\n"
         "Запусти /jobs чтобы увидеть лучшие."
     )
 
