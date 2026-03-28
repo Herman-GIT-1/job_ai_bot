@@ -31,7 +31,7 @@ cover letters, and notifies the user via Telegram.
 ## Setup
 
 ```bash
-pip install requests groq python-dotenv python-telegram-bot
+pip install -r requirements.txt
 ```
 
 Create `.env` in project root:
@@ -69,23 +69,22 @@ SerpAPI → scraper.py → database.py (SQLite)
 | Module | Role |
 |---|---|
 | `main.py` | CLI entry point (`argparse`), orchestrates pipeline stages |
-| `scraper.py` | Fetches jobs from SerpAPI, deduplicates, extracts tech stack keywords |
+| `scraper.py` | Calls Groq to build city-aware queries from resume, fetches via SerpAPI |
 | `database.py` | SQLite wrapper: schema with score, cover_letter, applied columns |
-| `ai_score.py` | AI scores each job 0–10 based on `resume.txt` |
+| `ai_score.py` | AI scores each job 0–10 by comparing resume to job requirements |
 | `cover_letter.py` | AI generates 100–120 word tailored cover letters per job |
+| `resume_parser.py` | Parses TXT/PDF/DOCX → plain text; `load_resume()` / `save_resume()` |
 | `open_jobs.py` | Opens jobs with score ≥ 7 in browser, marks applied after confirmation |
-| `bot.py` | Telegram bot: sends top jobs with inline buttons (Apply / Skip), /stats command |
+| `bot.py` | Telegram bot: /scrape /score /jobs /stats /resume /stop + file upload |
 
 ---
 
 ## Key Details
 
-- **Resume context** — `resume.txt` is read by `ai_score.py` and `cover_letter.py` and injected
-  into every prompt. Updating this file changes all future scoring and letter generation.
-- **Database schema** — `jobs` table: `id, title, company, link, tech_stack, remote, city,
-  score, cover_letter, applied`. No migrations system — schema changes require `ALTER TABLE`
-  or deleting `jobs.db`.
-- **SerpAPI quota** — 100 free requests/month. Each `--scrape` run consumes ~6–8 requests.
+- **Resume context** — `resume.txt` is read fresh on every call inside `ai_score.py`, `cover_letter.py`, and `scraper.py` via `resume_parser.load_resume()`. Uploading a new resume via bot takes effect immediately without restart.
+- **Search queries** — generated dynamically by Groq from resume content on each `/scrape`. Falls back to 3 generic queries if resume is missing or Groq fails.
+- **Database schema** — `jobs` table: `id, title, company, link, tech_stack, remote, city, score, cover_letter, applied`. `link` has UNIQUE constraint. No migrations system — schema changes require `ALTER TABLE` or deleting `jobs.db`.
+- **SerpAPI quota** — 100 free requests/month. Each `--scrape` run consumes N requests equal to the number of generated queries (~6–8).
 - **No test suite** — manual testing only.
 
 ---
@@ -216,12 +215,12 @@ When replacing temporary modules, follow these contracts:
 - Model, client and API key are internal to each module
 
 **Replacing SerpAPI (`scraper.py`):**
-- `search_jobs() → list[dict]` must return list of dicts with keys:
+- `search_jobs(city: str) → list[dict]` must return list of dicts with keys:
   `title, company, link, tech_stack, remote, city`
 
 **Replacing SQLite (`database.py`):**
 - Public interface must stay identical:
-  `save_job()`, `get_jobs()`, `get_jobs_to_apply()`, `mark_applied()`, `update_job()`
+  `save_job()`, `get_jobs()`, `get_jobs_to_apply()`, `mark_applied()`, `update_job()`, `get_job_link()`, `get_stats()`
 - Internals (connection, cursor) are implementation details
 
 > Keeping these interfaces stable means swapping one module never breaks others.
