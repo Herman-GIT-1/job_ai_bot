@@ -1,6 +1,6 @@
 import argparse
 from scraper import search_jobs
-from database import save_job, get_jobs, update_job
+from database import save_job, get_jobs, update_job, CLI_CHAT_ID
 from ai_score import evaluate
 from cover_letter import generate_letter as generate
 from open_jobs import open_jobs
@@ -13,12 +13,12 @@ def run_scrape():
         print("[!] AI не смог сгенерировать запросы — используются базовые.")
     print(f"Сохраняем в базу...")
     for job in jobs:
-        save_job(job)
+        save_job(job, CLI_CHAT_ID)
     print(f"Готово. {len(jobs)} вакансий добавлено.")
 
 def run_score():
     print("=== AI оценка и генерация cover letter ===")
-    pending = get_jobs()
+    pending = get_jobs(CLI_CHAT_ID)
     if not pending:
         print("Нет вакансий для оценки.")
         return
@@ -30,7 +30,7 @@ def run_score():
         job_dict = {"title": title, "company": company, "tech_stack": tech_stack, "description": description}
         score = evaluate(job_dict, resume=resume)
         letter = generate(job_dict, resume=resume)
-        update_job(job_id, score, letter)
+        update_job(job_id, CLI_CHAT_ID, score, letter)
         print(f"Score: {score}/10")
 
 def run_apply():
