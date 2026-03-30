@@ -124,16 +124,22 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @owner_only
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Привет! Я бот для поиска работы.\n\n"
-        "/resume — показать текущее резюме\n"
-        "/scrape — найти новые вакансии через SerpAPI\n"
-        "/score — оценить найденные вакансии через AI\n"
-        "/jobs — показать вакансии с оценкой ≥ 7\n"
-        "/stats — статистика по базе вакансий\n"
-        "/stop — остановить бота\n\n"
-        "Чтобы загрузить резюме — отправь файл (.txt, .pdf, .docx)."
-    )
+    try:
+        load_resume()
+        await update.message.reply_text(
+            "Привет! Резюме уже загружено.\n\n"
+            "/scrape — найти вакансии (спросит город)\n"
+            "/score — оценить найденные вакансии через AI\n"
+            "/jobs — показать вакансии с оценкой ≥ 7\n"
+            "/resume — показать текущее резюме\n"
+            "/stats — статистика\n"
+            "/stop — остановить бота"
+        )
+    except FileNotFoundError:
+        await update.message.reply_text(
+            "Привет! Я ищу стажировки и junior-вакансии.\n\n"
+            "Для начала отправь своё резюме — файл .txt, .pdf или .docx."
+        )
 
 
 @owner_only
