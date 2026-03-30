@@ -78,7 +78,7 @@ def get_jobs():
 
 def get_jobs_to_apply(min_score: int = 7):
     cursor.execute(
-        "SELECT id, title, company, link, cover_letter FROM jobs WHERE applied=0 AND score>=?",
+        "SELECT id, title, company, link, score, description, cover_letter FROM jobs WHERE applied=0 AND score>=?",
         (min_score,)
     )
     return cursor.fetchall()

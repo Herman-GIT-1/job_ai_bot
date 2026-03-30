@@ -120,12 +120,13 @@ async def _send_jobs(msg, min_score: int, lang_code: str) -> None:
 
     await msg.reply_text(t(lang_code, "jobs_found", min_score=min_score, count=len(vacancies)))
 
-    for job_id, title, company, _link, cover_letter in vacancies:
-        preview = (cover_letter or "")[:300]
+    for job_id, title, company, _link, score, description, _cover_letter in vacancies:
+        desc = (description or "").strip()
+        preview = desc[:280] + "…" if len(desc) > 280 else desc
         text = (
             f"<b>{title}</b>\n"
-            f"🏢 {company}\n\n"
-            f"{preview}{'…' if len(cover_letter or '') > 300 else ''}"
+            f"🏢 {company}  •  ⭐ {score}/10\n\n"
+            f"{preview}"
         )
         keyboard = InlineKeyboardMarkup([[
             InlineKeyboardButton(t(lang_code, "btn_apply"),  callback_data=f"apply:{job_id}"),
