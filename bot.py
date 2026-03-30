@@ -6,7 +6,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
                           MessageHandler, ConversationHandler, filters, ContextTypes)
 
-from database import get_jobs_to_apply, get_job_link, get_cover_letter, mark_applied, get_stats, get_jobs, update_job, count_jobs
+from database import get_jobs_to_apply, get_job_link, get_cover_letter, mark_applied, get_stats, get_jobs, update_job, count_jobs, reset_scores
 from scraper import search_jobs
 from database import save_job
 from resume_parser import parse_resume, save_resume, load_resume, validate
@@ -29,6 +29,13 @@ def owner_only(func):
             return
         return await func(update, context)
     return wrapper
+
+
+@owner_only
+async def rescore(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    reset_scores()
+    await update.message.reply_text("Оценки сброшены. Запускаю оценку заново...")
+    await score(update, context)
 
 
 @owner_only
@@ -269,6 +276,7 @@ def main():
     app.add_handler(CommandHandler("stop", stop))
     app.add_handler(CommandHandler("resume", resume_show))
     app.add_handler(CommandHandler("score", score))
+    app.add_handler(CommandHandler("rescore", rescore))
     app.add_handler(scrape_conv)
     app.add_handler(CommandHandler("jobs", jobs))
     app.add_handler(CommandHandler("stats", stats))

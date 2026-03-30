@@ -89,6 +89,11 @@ def get_job_link(job_id: int):
     return row[0] if row else None
 
 
+def reset_scores():
+    cursor.execute("UPDATE jobs SET score=NULL, cover_letter=NULL WHERE applied=0")
+    conn.commit()
+
+
 def count_jobs() -> int:
     return conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
 
