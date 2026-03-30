@@ -11,6 +11,8 @@ def generate_letter(job):
     resume = load_resume()
     tech_stack = job.get("tech_stack", "")
     tech_info = f"Required tech stack: {tech_stack}" if tech_stack else ""
+    description = job.get("description", "")
+    desc_info = f"Job description:\n{description}" if description else ""
 
     prompt = f"""Write a short cover letter (100-120 words) for this candidate applying to this job.
 
@@ -19,6 +21,7 @@ Candidate Resume:
 
 Job: {job['title']} at {job['company']}
 {tech_info}
+{desc_info}
 
 Guidelines:
 - Read the resume carefully and pick the 2-3 skills most relevant to THIS specific role

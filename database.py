@@ -26,15 +26,22 @@ cursor.execute(
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_link ON jobs (link)"
 )
 
+# Migration: add description column for existing databases
+try:
+    cursor.execute("ALTER TABLE jobs ADD COLUMN description TEXT DEFAULT ''")
+except sqlite3.OperationalError:
+    pass  # column already exists
+
 conn.commit()
 
 
 def save_job(job):
     try:
         cursor.execute(
-            "INSERT OR IGNORE INTO jobs (title, company, link, tech_stack, remote, city) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO jobs (title, company, link, tech_stack, remote, city, description) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (job["title"], job["company"], job["link"],
-             job.get("tech_stack", ""), int(job.get("remote", False)), job.get("city", ""))
+             job.get("tech_stack", ""), int(job.get("remote", False)),
+             job.get("city", ""), job.get("description", ""))
         )
         conn.commit()
     except Exception as e:
@@ -43,7 +50,7 @@ def save_job(job):
 
 def get_jobs():
     cursor.execute(
-        "SELECT id, title, company, link, tech_stack FROM jobs WHERE score IS NULL"
+        "SELECT id, title, company, link, tech_stack, description FROM jobs WHERE score IS NULL"
     )
     return cursor.fetchall()
 

@@ -11,6 +11,8 @@ def evaluate(job):
     resume = load_resume()
     tech_stack = job.get("tech_stack", "")
     tech_info = f"Tech stack: {tech_stack}" if tech_stack else ""
+    description = job.get("description", "")
+    desc_info = f"Description:\n{description}" if description else ""
 
     prompt = f"""You are a senior recruiter. Score how well this candidate fits the job opening.
 
@@ -21,6 +23,7 @@ def evaluate(job):
 Title: {job["title"]}
 Company: {job.get("company", "Unknown")}
 {tech_info}
+{desc_info}
 
 ## Instructions:
 Analyze the resume and the job, then score the match from 0 to 10 based on:

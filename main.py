@@ -21,10 +21,10 @@ def run_score():
         return
     print(f"Оцениваем {len(pending)} вакансий...\n")
     for job in pending:
-        job_id, title, company, link, tech_stack = job
+        job_id, title, company, link, tech_stack, description = job
         print(f"Analyzing: {title} @ {company}")
-        score = evaluate({"title": title, "company": company, "tech_stack": tech_stack})
-        letter = generate({"title": title, "company": company, "tech_stack": tech_stack})
+        score = evaluate({"title": title, "company": company, "tech_stack": tech_stack, "description": description})
+        letter = generate({"title": title, "company": company, "tech_stack": tech_stack, "description": description})
         update_job(job_id, score, letter)
         print(f"Score: {score}/10")
 

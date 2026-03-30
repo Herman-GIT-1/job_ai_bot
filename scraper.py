@@ -112,7 +112,8 @@ def search_jobs(city: str = "Warsaw, Poland") -> list[dict]:
                     "link": link,
                     "tech_stack": tech_stack,
                     "remote": remote,
-                    "city": "Warsaw",
+                    "city": city,
+                    "description": description[:1500],
                 })
 
         except Exception as e:
