@@ -62,7 +62,12 @@ async def scrape_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
     city = update.message.text.strip()
     await update.message.reply_text(f"Ищу вакансии в городе {city}... это займёт ~30 секунд.")
     loop = asyncio.get_event_loop()
-    jobs = await loop.run_in_executor(None, search_jobs, city)
+    jobs, used_fallback = await loop.run_in_executor(None, search_jobs, city)
+    if used_fallback:
+        await update.message.reply_text(
+            "Резюме не найдено или AI не смог его обработать — поиск выполнен по базовым запросам. "
+            "Загрузи резюме (.txt/.pdf/.docx) для более точных результатов."
+        )
     saved = 0
     for job in jobs:
         before = _db_count()

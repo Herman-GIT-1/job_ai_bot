@@ -8,7 +8,9 @@ from resume_parser import load_resume
 
 def run_scrape():
     print("=== Поиск вакансий через SerpAPI ===")
-    jobs = search_jobs()
+    jobs, used_fallback = search_jobs()
+    if used_fallback:
+        print("[!] AI не смог сгенерировать запросы — используются базовые.")
     print(f"Сохраняем в базу...")
     for job in jobs:
         save_job(job)

@@ -11,9 +11,9 @@ SERPAPI_KEY = os.environ.get("SERPAPI_KEY")
 _groq = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 
-def build_queries(resume_text: str, city: str) -> tuple[list[str], list[str]]:
+def build_queries(resume_text: str, city: str) -> tuple[list[str], list[str], bool]:
     """Ask Groq to produce search queries and tech keywords from the resume.
-    Returns (queries, tech_keywords)."""
+    Returns (queries, tech_keywords, used_fallback)."""
     prompt = f"""You are a job search assistant. Analyze this resume and return a JSON object with two keys:
 - "queries": list of 6-8 Google Jobs search strings for junior/intern positions in {city}.
   Each query should combine a role and a key skill (e.g. "junior python developer {city.lower()}").
@@ -36,7 +36,7 @@ Return ONLY valid JSON. No explanation."""
         queries = data.get("queries", [])
         tech_keywords = data.get("tech_keywords", [])
         if queries and tech_keywords:
-            return queries, tech_keywords
+            return queries, tech_keywords, False
     except Exception as e:
         print(f"[Scraper] Не удалось сгенерировать запросы через AI: {e}")
 
@@ -45,7 +45,7 @@ Return ONLY valid JSON. No explanation."""
         f"junior developer {city.lower()}",
         f"intern IT {city.lower()}",
         f"stażysta programista {city.lower()}",
-    ], ["Python", "SQL", "Java", "JavaScript"]
+    ], ["Python", "SQL", "Java", "JavaScript"], True
 
 
 def is_relevant(title: str) -> bool:
@@ -66,7 +66,7 @@ def search_jobs(city: str = "Warsaw, Poland") -> list[dict]:
         resume_text = ""
         print("[Scraper] resume.txt не найдено — используются базовые запросы.")
 
-    queries, tech_keywords = build_queries(resume_text, city)
+    queries, tech_keywords, used_fallback = build_queries(resume_text, city)
     print(f"[Scraper] Запросов: {len(queries)}, технологий в фильтре: {len(tech_keywords)}")
 
     jobs = []
@@ -120,4 +120,4 @@ def search_jobs(city: str = "Warsaw, Poland") -> list[dict]:
             print(f"  [Ошибка] '{query}': {e}")
 
     print(f"\n[Scraper] Найдено уникальных вакансий: {len(jobs)}")
-    return jobs
+    return jobs, used_fallback
