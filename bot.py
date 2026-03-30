@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
                           MessageHandler, ConversationHandler, filters, ContextTypes)
 
-from database import get_jobs_to_apply, get_job_link, get_cover_letter, mark_applied, get_stats, get_jobs, update_job
+from database import get_jobs_to_apply, get_job_link, get_cover_letter, mark_applied, get_stats, get_jobs, update_job, count_jobs
 from scraper import search_jobs
 from database import save_job
 from resume_parser import parse_resume, save_resume, load_resume, validate
@@ -70,9 +70,9 @@ async def scrape_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     saved = 0
     for job in jobs:
-        before = _db_count()
+        before = count_jobs()
         save_job(job)
-        if _db_count() > before:
+        if count_jobs() > before:
             saved += 1
     await update.message.reply_text(
         f"Готово. Найдено: {len(jobs)}, новых в базе: {saved}.\n"
@@ -85,10 +85,6 @@ async def scrape_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Поиск отменён.")
     return ConversationHandler.END
 
-
-def _db_count():
-    from database import conn
-    return conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
 
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):

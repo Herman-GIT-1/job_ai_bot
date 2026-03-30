@@ -88,6 +88,10 @@ def get_job_link(job_id: int):
     return row[0] if row else None
 
 
+def count_jobs() -> int:
+    return conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+
+
 def get_stats():
     cursor.execute("SELECT COUNT(*) FROM jobs")
     total = cursor.fetchone()[0]
