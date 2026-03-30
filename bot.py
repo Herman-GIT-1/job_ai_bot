@@ -37,11 +37,25 @@ async def score(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     resume = load_resume()
     loop = asyncio.get_running_loop()
-    for i, (job_id, title, company, _link, tech_stack, description) in enumerate(pending, 1):
-        job = {"title": title, "company": company, "tech_stack": tech_stack, "description": description}
-        await loop.run_in_executor(None, lambda j=job, jid=job_id, r=resume: update_job(jid, evaluate(j, resume=r), generate_letter(j, resume=r)))
-        if i % 5 == 0 or i == total:
-            await status_msg.edit_text(f"Оцениваю {i}/{total}...")
+    sem = asyncio.Semaphore(5)
+    done = 0
+
+    async def score_one(job_id, job):
+        nonlocal done
+        async with sem:
+            await loop.run_in_executor(
+                None,
+                lambda j=job, jid=job_id, r=resume: update_job(jid, evaluate(j, resume=r), generate_letter(j, resume=r))
+            )
+        done += 1
+        if done % 5 == 0 or done == total:
+            await status_msg.edit_text(f"Оцениваю {done}/{total}...")
+
+    tasks = [
+        score_one(job_id, {"title": title, "company": company, "tech_stack": tech_stack, "description": description})
+        for job_id, title, company, _link, tech_stack, description in pending
+    ]
+    await asyncio.gather(*tasks)
 
     await status_msg.edit_text(
         f"Готово. Оценено вакансий: {total}.\n"
