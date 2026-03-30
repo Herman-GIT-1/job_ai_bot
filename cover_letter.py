@@ -7,8 +7,9 @@ load_dotenv()
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-def generate_letter(job):
-    resume = load_resume()
+def generate_letter(job, resume=None):
+    if resume is None:
+        resume = load_resume()
     tech_stack = job.get("tech_stack", "")
     tech_info = f"Required tech stack: {tech_stack}" if tech_stack else ""
     description = job.get("description", "")

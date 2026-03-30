@@ -4,6 +4,7 @@ from database import save_job, get_jobs, update_job
 from ai_score import evaluate
 from cover_letter import generate_letter as generate
 from open_jobs import open_jobs
+from resume_parser import load_resume
 
 def run_scrape():
     print("=== Поиск вакансий через SerpAPI ===")
@@ -20,11 +21,13 @@ def run_score():
         print("Нет вакансий для оценки.")
         return
     print(f"Оцениваем {len(pending)} вакансий...\n")
+    resume = load_resume()
     for job in pending:
         job_id, title, company, link, tech_stack, description = job
         print(f"Analyzing: {title} @ {company}")
-        score = evaluate({"title": title, "company": company, "tech_stack": tech_stack, "description": description})
-        letter = generate({"title": title, "company": company, "tech_stack": tech_stack, "description": description})
+        job_dict = {"title": title, "company": company, "tech_stack": tech_stack, "description": description}
+        score = evaluate(job_dict, resume=resume)
+        letter = generate(job_dict, resume=resume)
         update_job(job_id, score, letter)
         print(f"Score: {score}/10")
 

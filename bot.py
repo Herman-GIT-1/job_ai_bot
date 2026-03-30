@@ -35,10 +35,11 @@ async def score(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total = len(pending)
     status_msg = await update.message.reply_text(f"Оцениваю 0/{total}...")
 
+    resume = load_resume()
     loop = asyncio.get_event_loop()
     for i, (job_id, title, company, _link, tech_stack, description) in enumerate(pending, 1):
         job = {"title": title, "company": company, "tech_stack": tech_stack, "description": description}
-        await loop.run_in_executor(None, lambda j=job, jid=job_id: update_job(jid, evaluate(j), generate_letter(j)))
+        await loop.run_in_executor(None, lambda j=job, jid=job_id, r=resume: update_job(jid, evaluate(j, resume=r), generate_letter(j, resume=r)))
         if i % 5 == 0 or i == total:
             await status_msg.edit_text(f"Оцениваю {i}/{total}...")
 
