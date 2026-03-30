@@ -17,14 +17,14 @@ cover letters, and notifies the user via Telegram.
 
 | Component | Tool | Note |
 |---|---|---|
-| Job source | JustJoin.it public API | No key, no quota — Polish IT jobs only |
+| Job source | Adzuna REST API | Free tier, `ADZUNA_APP_ID` + `ADZUNA_APP_KEY` required |
 | AI model | Groq `llama-3.1-8b-instant` | Free — prototype only; replace with Claude API at Stage 2 |
 | Database | SQLite (`jobs.db`) | Local only, single user |
 | Notifications | Telegram Bot (python-telegram-bot) | Single user (hardcoded chat_id) |
 | Env management | python-dotenv | |
 
-> ⚠️ **Groq and SerpAPI are temporary.** They exist only to validate the pipeline without cost.
-> Before any public launch, both must be replaced (see Scaling Plan below).
+> ⚠️ **Groq is temporary.** It exists only to validate the pipeline without cost.
+> Before any public launch, replace with Claude API (see Scaling Plan below).
 
 ---
 
@@ -37,6 +37,8 @@ pip install -r requirements.txt
 Create `.env` in project root:
 ```
 GROQ_API_KEY=        # console.groq.com — free
+ADZUNA_APP_ID=       # developer.adzuna.com — free tier
+ADZUNA_APP_KEY=      # developer.adzuna.com — free tier
 TELEGRAM_BOT_TOKEN=  # from @BotFather on Telegram
 TELEGRAM_CHAT_ID=    # your personal Telegram chat ID
 ```
@@ -60,17 +62,17 @@ Telegram bot commands: `/start` `/resume` `/scrape` `/score` `/jobs` `/stats` `/
 ## Architecture (Current)
 
 ```
-SerpAPI → scraper.py → database.py (SQLite)
-                              ↓
-                    ai_score.py + cover_letter.py (Groq)
-                              ↓
-                    bot.py (Telegram) / open_jobs.py (browser)
+Adzuna API → scraper.py → database.py (SQLite)
+                                ↓
+                      ai_score.py + cover_letter.py (Groq)
+                                ↓
+                      bot.py (Telegram) / open_jobs.py (browser)
 ```
 
 | Module | Role |
 |---|---|
 | `main.py` | CLI entry point (`argparse`), orchestrates pipeline stages |
-| `scraper.py` | Calls Groq to build city-aware queries from resume, fetches via SerpAPI |
+| `scraper.py` | Calls Groq to build city-aware queries from resume, fetches via Adzuna API |
 | `database.py` | SQLite wrapper: schema with score, cover_letter, applied columns |
 | `ai_score.py` | AI scores each job 0–10 by comparing resume to job requirements |
 | `cover_letter.py` | AI generates 100–120 word tailored cover letters per job |
@@ -83,9 +85,8 @@ SerpAPI → scraper.py → database.py (SQLite)
 ## Key Details
 
 - **Resume context** — `resume.txt` is read fresh on every call inside `ai_score.py`, `cover_letter.py`, and `scraper.py` via `resume_parser.load_resume()`. Uploading a new resume via bot takes effect immediately without restart.
-- **Job source** — JustJoin.it public API (`GET https://justjoin.it/api/offers`), no key required. Filters by city and experience level (`junior`/`intern`). No quota limits.
-- **Database schema** — `jobs` table: `id, title, company, link, tech_stack, remote, city, score, cover_letter, applied`. `link` has UNIQUE constraint. `applied`: 0=pending, 1=applied, 2=skipped. No migrations system — schema changes require `ALTER TABLE` or deleting `jobs.db`.
-- **No scraping quota** — JustJoin.it API is public and has no rate limits. Each `--scrape` run makes a single GET request.
+- **Job source** — Adzuna REST API (`https://api.adzuna.com/v1/api/jobs/pl/search/1`). Requires `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` (free tier at developer.adzuna.com). Groq generates 5 city-aware search queries from resume; each query = 1 API call (up to 50 results each).
+- **Database schema** — `jobs` table: `id, title, company, link, tech_stack, remote, city, score, cover_letter, applied, description`. `link` has UNIQUE constraint. `applied`: 0=pending, 1=applied, 2=skipped. No migrations system — schema changes require `ALTER TABLE` or deleting `jobs.db`.
 - **No test suite** — manual testing only.
 
 ---
@@ -97,7 +98,7 @@ When making changes, avoid decisions that block the transitions below.
 
 ### Stage 1 — MVP (now)
 - Single user, runs locally
-- Free APIs: Groq + SerpAPI
+- Free APIs: Groq + Adzuna
 - Telegram bot for notifications
 - SQLite database
 
@@ -106,8 +107,8 @@ When making changes, avoid decisions that block the transitions below.
 
 Planned changes:
 - Replace **SQLite → PostgreSQL** (one DB, user_id per row)
-- Replace **Groq → Anthropic Claude API** (`claude-sonnet`) for scoring and letter generation
-- Replace **SerpAPI → JustJoin.it public API** or another reliable job source without quota limits
+- Replace **Groq → Anthropic Claude API** (`claude-haiku-4-5` or `claude-sonnet-4-6`) for scoring and letter generation
+- Adzuna remains as job source (or upgrade to paid plan for higher quota)
 - Add **FastAPI backend** for user registration and resume upload
 - Add **Celery + Redis** for async per-user job processing
 - Each user has own `resume.txt` stored server-side
@@ -215,9 +216,9 @@ When replacing temporary modules, follow these contracts:
 - `generate_letter(job: dict) → str` must return plain text string
 - Model, client and API key are internal to each module
 
-**Replacing SerpAPI (`scraper.py`):**
-- `search_jobs(city: str) → list[dict]` must return list of dicts with keys:
-  `title, company, link, tech_stack, remote, city`
+**Replacing Adzuna (`scraper.py`):**
+- `search_jobs(city: str) → tuple[list[dict], bool]` must return `(jobs, used_fallback)`
+- Each dict must have keys: `title, company, link, tech_stack, remote, city, description`
 
 **Replacing SQLite (`database.py`):**
 - Public interface must stay identical:
