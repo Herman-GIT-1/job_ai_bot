@@ -36,7 +36,7 @@ async def score(update: Update, context: ContextTypes.DEFAULT_TYPE):
     status_msg = await update.message.reply_text(f"Оцениваю 0/{total}...")
 
     resume = load_resume()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     for i, (job_id, title, company, _link, tech_stack, description) in enumerate(pending, 1):
         job = {"title": title, "company": company, "tech_stack": tech_stack, "description": description}
         await loop.run_in_executor(None, lambda j=job, jid=job_id, r=resume: update_job(jid, evaluate(j, resume=r), generate_letter(j, resume=r)))
@@ -61,7 +61,7 @@ async def scrape_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def scrape_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
     city = update.message.text.strip()
     await update.message.reply_text(f"Ищу вакансии в городе {city}... это займёт ~30 секунд.")
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     jobs, used_fallback = await loop.run_in_executor(None, search_jobs, city)
     if used_fallback:
         await update.message.reply_text(
