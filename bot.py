@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import os
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -20,6 +21,17 @@ CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
 ASK_CITY = 0
 
 
+def owner_only(func):
+    @functools.wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if update.effective_chat.id != CHAT_ID:
+            await update.message.reply_text("Access denied.")
+            return
+        return await func(update, context)
+    return wrapper
+
+
+@owner_only
 async def score(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         load_resume()
@@ -63,6 +75,7 @@ async def score(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+@owner_only
 async def scrape_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "В каком городе искать вакансии?\n"
@@ -72,6 +85,7 @@ async def scrape_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ASK_CITY
 
 
+@owner_only
 async def scrape_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
     city = update.message.text.strip()
     await update.message.reply_text(f"Ищу вакансии в городе {city}... это займёт ~30 секунд.")
@@ -95,17 +109,20 @@ async def scrape_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+@owner_only
 async def scrape_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Поиск отменён.")
     return ConversationHandler.END
 
 
 
+@owner_only
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Останавливаю бота...")
     await context.application.stop()
 
 
+@owner_only
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Привет! Я бот для поиска работы.\n\n"
@@ -119,6 +136,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+@owner_only
 async def resume_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         text = load_resume()
@@ -131,6 +149,7 @@ async def resume_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Резюме не найдено. Отправь файл (.txt, .pdf, .docx).")
 
 
+@owner_only
 async def resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     doc = update.message.document
     filename = doc.file_name or ""
@@ -157,6 +176,7 @@ async def resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Не удалось обработать файл: {e}")
 
 
+@owner_only
 async def jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     vacancies = get_jobs_to_apply()
     if not vacancies:
@@ -182,6 +202,7 @@ async def jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
 
 
+@owner_only
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     s = get_stats()
     avg = f"{s['avg_score']:.1f}" if s["avg_score"] is not None else "—"
