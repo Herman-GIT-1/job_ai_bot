@@ -32,7 +32,28 @@ try:
 except sqlite3.OperationalError:
     pass  # column already exists
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS user_settings (
+    chat_id INTEGER PRIMARY KEY,
+    language TEXT NOT NULL DEFAULT 'en'
+)
+""")
+
 conn.commit()
+
+
+def get_user_lang(chat_id: int) -> str:
+    row = conn.execute("SELECT language FROM user_settings WHERE chat_id=?", (chat_id,)).fetchone()
+    return row[0] if row else "en"
+
+
+def set_user_lang(chat_id: int, lang: str) -> None:
+    conn.execute(
+        "INSERT INTO user_settings (chat_id, language) VALUES (?, ?)"
+        " ON CONFLICT(chat_id) DO UPDATE SET language=excluded.language",
+        (chat_id, lang),
+    )
+    conn.commit()
 
 
 def save_job(job):

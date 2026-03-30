@@ -6,12 +6,14 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
                           MessageHandler, ConversationHandler, filters, ContextTypes)
 
-from database import get_jobs_to_apply, get_job_link, get_cover_letter, mark_applied, get_stats, get_jobs, update_job, count_jobs, reset_scores
+from database import (get_jobs_to_apply, get_job_link, get_cover_letter, mark_applied,
+                      get_stats, get_jobs, update_job, count_jobs, reset_scores,
+                      save_job, get_user_lang, set_user_lang)
 from scraper import search_jobs
-from database import save_job
 from resume_parser import parse_resume, save_resume, load_resume, validate
 from ai_score import evaluate
 from cover_letter import generate_letter
+from strings import t
 
 load_dotenv()
 
@@ -20,41 +22,63 @@ CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
 
 ASK_CITY = 0
 
+CITIES = ["Warszawa", "Kraków", "Wrocław", "Gdańsk", "Poznań", "Remote"]
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _lang(update: Update) -> str:
+    return get_user_lang(update.effective_chat.id)
+
 
 def owner_only(func):
+    """Restrict handler to the owner's chat_id. Works for commands and messages."""
     @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if update.effective_chat.id != CHAT_ID:
-            await update.message.reply_text("Access denied.")
+            if update.message:
+                await update.message.reply_text(t("en", "access_denied"))
             return
         return await func(update, context)
     return wrapper
 
 
-@owner_only
-async def rescore(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    reset_scores()
-    await update.message.reply_text("Оценки сброшены. Запускаю оценку заново...")
-    await score(update, context)
+def _city_keyboard() -> InlineKeyboardMarkup:
+    buttons = [InlineKeyboardButton(c, callback_data=f"city:{c}") for c in CITIES]
+    rows = [buttons[i:i + 3] for i in range(0, len(buttons), 3)]
+    return InlineKeyboardMarkup(rows)
 
 
-@owner_only
-async def score(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def _lang_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([[
+        InlineKeyboardButton("🇬🇧 English", callback_data="lang:en"),
+        InlineKeyboardButton("🇷🇺 Русский", callback_data="lang:ru"),
+        InlineKeyboardButton("🇵🇱 Polski",  callback_data="lang:pl"),
+    ]])
+
+
+# ---------------------------------------------------------------------------
+# Core logic helpers (shared between commands and button callbacks)
+# ---------------------------------------------------------------------------
+
+async def _run_score(msg, lang_code: str) -> None:
+    """Score all unscored jobs. msg — telegram Message to reply to."""
     try:
-        load_resume()
+        resume = load_resume()
     except FileNotFoundError:
-        await update.message.reply_text("Резюме не найдено. Отправь файл (.txt, .pdf, .docx) и повтори.")
+        await msg.reply_text(t(lang_code, "score_no_resume"))
         return
 
     pending = get_jobs()
     if not pending:
-        await update.message.reply_text("Нет вакансий для оценки. Сначала запусти /scrape.")
+        await msg.reply_text(t(lang_code, "score_no_jobs"))
         return
 
     total = len(pending)
-    status_msg = await update.message.reply_text(f"Оцениваю 0/{total}...")
+    status_msg = await msg.reply_text(t(lang_code, "score_progress", done=0, total=total))
 
-    resume = load_resume()
     loop = asyncio.get_running_loop()
     sem = asyncio.Semaphore(5)
     done = 0
@@ -64,225 +88,331 @@ async def score(update: Update, context: ContextTypes.DEFAULT_TYPE):
         async with sem:
             await loop.run_in_executor(
                 None,
-                lambda j=job, jid=job_id, r=resume: update_job(jid, evaluate(j, resume=r), generate_letter(j, resume=r))
+                lambda j=job, jid=job_id, r=resume: update_job(
+                    jid, evaluate(j, resume=r), generate_letter(j, resume=r)
+                ),
             )
         done += 1
         if done % 5 == 0 or done == total:
-            await status_msg.edit_text(f"Оцениваю {done}/{total}...")
+            await status_msg.edit_text(t(lang_code, "score_progress", done=done, total=total))
 
-    tasks = [
-        score_one(job_id, {"title": title, "company": company, "tech_stack": tech_stack, "description": description})
+    await asyncio.gather(*[
+        score_one(
+            job_id,
+            {"title": title, "company": company,
+             "tech_stack": tech_stack, "description": description},
+        )
         for job_id, title, company, _link, tech_stack, description in pending
-    ]
-    await asyncio.gather(*tasks)
+    ])
 
-    await status_msg.edit_text(
-        f"Готово. Оценено вакансий: {total}.\n"
-        "Запусти /jobs чтобы увидеть лучшие."
-    )
-
-
-@owner_only
-async def scrape_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "В каком городе искать вакансии?\n"
-        "Например: Warszawa, Kraków, Wrocław, Gdańsk, Poznań\n\n"
-        "Или /cancel чтобы отменить."
-    )
-    return ASK_CITY
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton(t(lang_code, "btn_view_jobs"), callback_data="action:jobs"),
+    ]])
+    await status_msg.edit_text(t(lang_code, "score_done", total=total), reply_markup=keyboard)
 
 
-@owner_only
-async def scrape_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    city = update.message.text.strip()
-    await update.message.reply_text(f"Ищу вакансии в городе {city}... это займёт ~30 секунд.")
-    loop = asyncio.get_running_loop()
-    jobs, used_fallback = await loop.run_in_executor(None, search_jobs, city)
-    if used_fallback:
-        await update.message.reply_text(
-            "Резюме не найдено или AI не смог его обработать — поиск выполнен по базовым запросам. "
-            "Загрузи резюме (.txt/.pdf/.docx) для более точных результатов."
-        )
-    saved = 0
-    for job in jobs:
-        before = count_jobs()
-        save_job(job)
-        if count_jobs() > before:
-            saved += 1
-    await update.message.reply_text(
-        f"Готово. Найдено: {len(jobs)}, новых в базе: {saved}.\n"
-        "Запусти /jobs чтобы увидеть лучшие вакансии."
-    )
-    return ConversationHandler.END
-
-
-@owner_only
-async def scrape_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Поиск отменён.")
-    return ConversationHandler.END
-
-
-
-@owner_only
-async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Останавливаю бота...")
-    await context.application.stop()
-
-
-@owner_only
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        load_resume()
-        await update.message.reply_text(
-            "Привет! Резюме уже загружено.\n\n"
-            "/scrape — найти вакансии (спросит город)\n"
-            "/score — оценить найденные вакансии через AI\n"
-            "/jobs — показать вакансии с оценкой ≥ 7\n"
-            "/resume — показать текущее резюме\n"
-            "/stats — статистика\n"
-            "/stop — остановить бота"
-        )
-    except FileNotFoundError:
-        await update.message.reply_text(
-            "Привет! Я ищу стажировки и junior-вакансии.\n\n"
-            "Для начала отправь своё резюме — файл .txt, .pdf или .docx."
-        )
-
-
-@owner_only
-async def resume_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        text = load_resume()
-        preview = text[:600].strip()
-        await update.message.reply_text(
-            f"Текущее резюме ({len(text)} символов):\n\n{preview}"
-            + ("…" if len(text) > 600 else "")
-        )
-    except FileNotFoundError:
-        await update.message.reply_text("Резюме не найдено. Отправь файл (.txt, .pdf, .docx).")
-
-
-@owner_only
-async def resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    doc = update.message.document
-    filename = doc.file_name or ""
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-
-    if ext not in ("txt", "pdf", "docx"):
-        await update.message.reply_text("Поддерживаются только .txt, .pdf, .docx.")
-        return
-
-    await update.message.reply_text("Обрабатываю файл…")
-    try:
-        tg_file = await doc.get_file()
-        file_bytes = await tg_file.download_as_bytearray()
-        text = parse_resume(bytes(file_bytes), filename)
-        validate(text)
-        save_resume(text)
-        await update.message.reply_text(
-            f"Резюме сохранено ✅ ({len(text)} символов).\n"
-            "Оно будет использоваться при следующем /scrape и оценке вакансий."
-        )
-    except (ValueError, ImportError) as e:
-        await update.message.reply_text(f"Ошибка: {e}")
-    except Exception as e:
-        await update.message.reply_text(f"Не удалось обработать файл: {e}")
-
-
-@owner_only
-async def jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        min_score = int(context.args[0]) if context.args else 7
-        min_score = max(0, min(10, min_score))
-    except (ValueError, IndexError):
-        min_score = 7
-
+async def _send_jobs(msg, min_score: int, lang_code: str) -> None:
+    """Send job cards with Apply/Skip/Letter buttons."""
     vacancies = get_jobs_to_apply(min_score)
     if not vacancies:
-        await update.message.reply_text(f"Нет новых вакансий с оценкой ≥ {min_score}.")
+        await msg.reply_text(t(lang_code, "jobs_none", min_score=min_score))
         return
 
-    await update.message.reply_text(f"Найдено вакансий (score ≥ {min_score}): {len(vacancies)}")
+    await msg.reply_text(t(lang_code, "jobs_found", min_score=min_score, count=len(vacancies)))
 
-    for job_id, title, company, link, cover_letter in vacancies:
+    for job_id, title, company, _link, cover_letter in vacancies:
         preview = (cover_letter or "")[:300]
         text = (
             f"<b>{title}</b>\n"
             f"🏢 {company}\n\n"
             f"{preview}{'…' if len(cover_letter or '') > 300 else ''}"
         )
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("Подать ✅", callback_data=f"apply:{job_id}"),
-                InlineKeyboardButton("Пропустить ❌", callback_data=f"skip:{job_id}"),
-                InlineKeyboardButton("Письмо 📄", callback_data=f"letter:{job_id}"),
-            ]
-        ])
-        await update.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton(t(lang_code, "btn_apply"),  callback_data=f"apply:{job_id}"),
+            InlineKeyboardButton(t(lang_code, "btn_skip"),   callback_data=f"skip:{job_id}"),
+            InlineKeyboardButton(t(lang_code, "btn_letter"), callback_data=f"letter:{job_id}"),
+        ]])
+        await msg.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
+
+
+async def _run_scrape(city: str, msg, lang_code: str) -> None:
+    """Run scraping for city and send results. msg — telegram Message to reply to."""
+    await msg.reply_text(t(lang_code, "scrape_searching", city=city))
+    loop = asyncio.get_running_loop()
+    jobs, used_fallback = await loop.run_in_executor(None, search_jobs, city)
+
+    if used_fallback:
+        await msg.reply_text(t(lang_code, "scrape_fallback_warning"))
+
+    saved = 0
+    for job in jobs:
+        before = count_jobs()
+        save_job(job)
+        if count_jobs() > before:
+            saved += 1
+
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton(t(lang_code, "btn_score_now"), callback_data="action:score"),
+    ]])
+    await msg.reply_text(
+        t(lang_code, "scrape_done", found=len(jobs), saved=saved),
+        reply_markup=keyboard,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Command handlers
+# ---------------------------------------------------------------------------
+
+@owner_only
+async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    try:
+        load_resume()
+        await update.message.reply_text(t(lang_code, "start_with_resume"))
+    except FileNotFoundError:
+        # First-time: show language picker together with the welcome message
+        await update.message.reply_text(
+            t(lang_code, "start_no_resume"),
+            reply_markup=_lang_keyboard(),
+        )
 
 
 @owner_only
-async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cmd_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    await update.message.reply_text(t(lang_code, "lang_choose"), reply_markup=_lang_keyboard())
+
+
+@owner_only
+async def cmd_score(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await _run_score(update.message, _lang(update))
+
+
+@owner_only
+async def cmd_rescore(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    reset_scores()
+    await update.message.reply_text(t(lang_code, "rescore_start"))
+    await _run_score(update.message, lang_code)
+
+
+@owner_only
+async def cmd_scrape_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    await update.message.reply_text(
+        t(lang_code, "scrape_ask_city"),
+        reply_markup=_city_keyboard(),
+    )
+    return ASK_CITY
+
+
+@owner_only
+async def cmd_scrape_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """User typed a custom city name."""
+    city = update.message.text.strip()
+    await _run_scrape(city, update.message, _lang(update))
+    return ConversationHandler.END
+
+
+@owner_only
+async def cmd_scrape_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    await update.message.reply_text(t(lang_code, "scrape_cancelled"))
+    return ConversationHandler.END
+
+
+@owner_only
+async def cmd_jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    try:
+        min_score = int(context.args[0]) if context.args else 7
+        min_score = max(0, min(10, min_score))
+    except (ValueError, IndexError):
+        min_score = 7
+    await _send_jobs(update.message, min_score, lang_code)
+
+
+@owner_only
+async def cmd_resume_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    try:
+        text = load_resume()
+        preview = text[:600].strip()
+        header = t(lang_code, "resume_show_header", chars=len(text))
+        await update.message.reply_text(
+            f"{header}\n\n{preview}" + ("…" if len(text) > 600 else "")
+        )
+    except FileNotFoundError:
+        await update.message.reply_text(t(lang_code, "resume_not_found"))
+
+
+@owner_only
+async def cmd_resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    doc = update.message.document
+    filename = doc.file_name or ""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if ext not in ("txt", "pdf", "docx"):
+        await update.message.reply_text(t(lang_code, "resume_unsupported"))
+        return
+
+    await update.message.reply_text(t(lang_code, "resume_processing"))
+    try:
+        tg_file = await doc.get_file()
+        file_bytes = await tg_file.download_as_bytearray()
+        text = parse_resume(bytes(file_bytes), filename)
+        validate(text)
+        save_resume(text)
+        await update.message.reply_text(t(lang_code, "resume_saved", chars=len(text)))
+    except (ValueError, ImportError) as e:
+        await update.message.reply_text(t(lang_code, "resume_error", error=e))
+    except Exception as e:
+        await update.message.reply_text(t(lang_code, "resume_upload_failed", error=e))
+
+
+@owner_only
+async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
     s = get_stats()
     avg = f"{s['avg_score']:.1f}" if s["avg_score"] is not None else "—"
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton(t(lang_code, "btn_view_jobs"), callback_data="action:jobs"),
+        InlineKeyboardButton(t(lang_code, "btn_rescore"),   callback_data="action:rescore"),
+    ]])
     await update.message.reply_text(
-        f"📊 Статистика:\n"
-        f"Всего вакансий: {s['total']}\n"
-        f"Оценено: {s['scored']}\n"
-        f"Средний score: {avg}\n"
-        f"Подано заявок: {s['applied']}\n"
-        f"Пропущено: {s['skipped']}"
+        t(lang_code, "stats",
+          total=s["total"], scored=s["scored"], avg=avg,
+          applied=s["applied"], skipped=s["skipped"]),
+        reply_markup=keyboard,
     )
 
+
+@owner_only
+async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(t(_lang(update), "stop_msg"))
+    await context.application.stop()
+
+
+# ---------------------------------------------------------------------------
+# Inline button callback handler
+# ---------------------------------------------------------------------------
 
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    action, job_id = query.data.split(":")
-    job_id = int(job_id)
+    # Guard: only owner can trigger callbacks
+    if query.message.chat.id != CHAT_ID:
+        await query.answer(t("en", "access_denied"), show_alert=True)
+        return
+
+    data = query.data
+    lang_code = get_user_lang(query.message.chat.id)
+
+    # --- language selection ---
+    if data.startswith("lang:"):
+        new_lang = data.split(":", 1)[1]
+        set_user_lang(query.message.chat.id, new_lang)
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(t(new_lang, "lang_set"))
+        return
+
+    # --- city selection (inside scrape conversation) ---
+    if data.startswith("city:"):
+        city = data.split(":", 1)[1]
+        await query.edit_message_reply_markup(reply_markup=None)
+        await _run_scrape(city, query.message, lang_code)
+        return
+
+    # --- quick actions from stats / score done buttons ---
+    if data.startswith("action:"):
+        action = data.split(":", 1)[1]
+        if action == "jobs":
+            await _send_jobs(query.message, 7, lang_code)
+        elif action == "score":
+            await _run_score(query.message, lang_code)
+        elif action == "rescore":
+            reset_scores()
+            await query.message.reply_text(t(lang_code, "rescore_start"))
+            await _run_score(query.message, lang_code)
+        return
+
+    # --- job card actions: apply / skip / letter ---
+    parts = data.split(":", 1)
+    if len(parts) != 2:
+        return
+    action, job_id_str = parts
+    job_id = int(job_id_str)
 
     if action == "letter":
         row = get_cover_letter(job_id)
         if not row or not row[2]:
-            await query.answer("Письмо не найдено.", show_alert=True)
+            await query.answer(t(lang_code, "letter_not_found"), show_alert=True)
             return
         title, company, letter = row
         filename = f"cover_letter_{company}_{title}.txt".replace(" ", "_").replace("/", "-")
-        await query.message.reply_document(
-            document=letter.encode("utf-8"),
-            filename=filename,
-        )
+        await query.message.reply_document(document=letter.encode("utf-8"), filename=filename)
+
     elif action == "apply":
         link = get_job_link(job_id)
         mark_applied(job_id, status=1)
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text(f"Заявка отмечена ✅\n🔗 {link}")
-    else:
+        await query.message.reply_text(t(lang_code, "applied_msg", link=link))
+
+    elif action == "skip":
         mark_applied(job_id, status=2)
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text("Пропущено ❌")
+        await query.message.reply_text(t(lang_code, "skipped_msg"))
 
+
+# ---------------------------------------------------------------------------
+# City button inside ConversationHandler
+# ---------------------------------------------------------------------------
+
+async def conv_city_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles city quick-pick button while inside the scrape conversation."""
+    query = update.callback_query
+    await query.answer()
+    city = query.data.split(":", 1)[1]
+    lang_code = get_user_lang(query.message.chat.id)
+    await query.edit_message_reply_markup(reply_markup=None)
+    await _run_scrape(city, query.message, lang_code)
+    return ConversationHandler.END
+
+
+# ---------------------------------------------------------------------------
+# App entry point
+# ---------------------------------------------------------------------------
 
 def main():
     app = Application.builder().token(TOKEN).build()
+
     scrape_conv = ConversationHandler(
-        entry_points=[CommandHandler("scrape", scrape_ask_city)],
-        states={ASK_CITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, scrape_run)]},
-        fallbacks=[CommandHandler("cancel", scrape_cancel)],
+        entry_points=[CommandHandler("scrape", cmd_scrape_ask_city)],
+        states={
+            ASK_CITY: [
+                CallbackQueryHandler(conv_city_button, pattern="^city:"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_scrape_run),
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", cmd_scrape_cancel)],
     )
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("stop", stop))
-    app.add_handler(CommandHandler("resume", resume_show))
-    app.add_handler(CommandHandler("score", score))
-    app.add_handler(CommandHandler("rescore", rescore))
+    app.add_handler(CommandHandler("start",    cmd_start))
+    app.add_handler(CommandHandler("language", cmd_language))
+    app.add_handler(CommandHandler("resume",   cmd_resume_show))
+    app.add_handler(CommandHandler("score",    cmd_score))
+    app.add_handler(CommandHandler("rescore",  cmd_rescore))
+    app.add_handler(CommandHandler("jobs",     cmd_jobs))
+    app.add_handler(CommandHandler("stats",    cmd_stats))
+    app.add_handler(CommandHandler("stop",     cmd_stop))
     app.add_handler(scrape_conv)
-    app.add_handler(CommandHandler("jobs", jobs))
-    app.add_handler(CommandHandler("stats", stats))
-    app.add_handler(MessageHandler(filters.Document.ALL, resume_upload))
+    app.add_handler(MessageHandler(filters.Document.ALL, cmd_resume_upload))
     app.add_handler(CallbackQueryHandler(button))
-    print("Бот запущен...")
+
+    print("Bot started...")
     app.run_polling()
 
 
