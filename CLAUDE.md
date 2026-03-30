@@ -17,7 +17,7 @@ cover letters, and notifies the user via Telegram.
 
 | Component | Tool | Note |
 |---|---|---|
-| Job source | SerpAPI (Google Jobs) | Free tier: 100 req/month — prototype only |
+| Job source | JustJoin.it public API | No key, no quota — Polish IT jobs only |
 | AI model | Groq `llama-3.1-8b-instant` | Free — prototype only; replace with Claude API at Stage 2 |
 | Database | SQLite (`jobs.db`) | Local only, single user |
 | Notifications | Telegram Bot (python-telegram-bot) | Single user (hardcoded chat_id) |
@@ -37,7 +37,6 @@ pip install -r requirements.txt
 Create `.env` in project root:
 ```
 GROQ_API_KEY=        # console.groq.com — free
-SERPAPI_KEY=         # serpapi.com — free 100 req/month
 TELEGRAM_BOT_TOKEN=  # from @BotFather on Telegram
 TELEGRAM_CHAT_ID=    # your personal Telegram chat ID
 ```
@@ -84,9 +83,9 @@ SerpAPI → scraper.py → database.py (SQLite)
 ## Key Details
 
 - **Resume context** — `resume.txt` is read fresh on every call inside `ai_score.py`, `cover_letter.py`, and `scraper.py` via `resume_parser.load_resume()`. Uploading a new resume via bot takes effect immediately without restart.
-- **Search queries** — generated dynamically by Groq from resume content on each `/scrape`. Falls back to 3 generic queries if resume is missing or Groq fails.
+- **Job source** — JustJoin.it public API (`GET https://justjoin.it/api/offers`), no key required. Filters by city and experience level (`junior`/`intern`). No quota limits.
 - **Database schema** — `jobs` table: `id, title, company, link, tech_stack, remote, city, score, cover_letter, applied`. `link` has UNIQUE constraint. `applied`: 0=pending, 1=applied, 2=skipped. No migrations system — schema changes require `ALTER TABLE` or deleting `jobs.db`.
-- **SerpAPI quota** — 100 free requests/month. Each `--scrape` run consumes N requests equal to the number of generated queries (~6–8).
+- **No scraping quota** — JustJoin.it API is public and has no rate limits. Each `--scrape` run makes a single GET request.
 - **No test suite** — manual testing only.
 
 ---
