@@ -12,6 +12,14 @@ ADZUNA_APP_KEY = os.environ.get("ADZUNA_APP_KEY")
 ADZUNA_BASE_URL = "https://api.adzuna.com/v1/api/jobs/pl/search/1"
 JUSTJOIN_URL = "https://justjoin.it/api/offers"
 REMOTIVE_URL = "https://remotive.com/api/remote-jobs"
+NFJ_SEARCH_URL = "https://nofluffjobs.com/api/search/posting?salaryCurrency=PLN&salaryPeriod=month"
+NFJ_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Content-Type": "application/json",
+    "Origin": "https://nofluffjobs.com",
+    "Referer": "https://nofluffjobs.com/pl/praca",
+}
 
 _groq = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
@@ -107,47 +115,71 @@ def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
     return jobs
 
 
-def _fetch_justjoin(city: str) -> list[dict]:
-    print(f"  [JustJoin] Ищу вакансии в {city}...")
-    try:
-        r = requests.get(JUSTJOIN_URL, timeout=20)
-        r.raise_for_status()
-        all_offers = r.json()
-    except Exception as e:
-        print(f"  [JustJoin] Недоступен: {e}")
-        return []
+def _city_to_nfj_slug(city: str) -> str:
+    """Warsaw / Warszawa / Kraków → warszawa / krakow for NoFluffJobs criteria."""
+    slug = city.lower().split(",")[0].strip()
+    for pl, en in [("ą","a"),("ć","c"),("ę","e"),("ł","l"),("ń","n"),("ó","o"),("ś","s"),("ź","z"),("ż","z")]:
+        slug = slug.replace(pl, en)
+    return slug
 
-    city_lower = city.lower()
+
+def _fetch_nofluffjobs(city: str) -> list[dict]:
+    """NoFluffJobs — Polish IT jobs, no API key needed."""
+    city_slug = _city_to_nfj_slug(city)
+    print(f"  [NoFluffJobs] Ищу junior/intern в {city} (slug: {city_slug})...")
+
     jobs = []
-    for offer in all_offers:
-        title = offer.get("title", "")
-        if not _is_junior(title):
-            exp = (offer.get("experienceLevel") or "").lower()
-            if exp not in ("junior", "intern"):
-                continue
+    page = 1
+    total_pages = 1
 
-        offer_city = (offer.get("city") or "").lower()
-        remote_ok = offer.get("remote", False)
-        if not remote_ok and city_lower not in offer_city:
-            continue
+    while page <= total_pages and page <= 5:  # cap at 250 jobs
+        body = {
+            "criteriaSearch": {"city": [city_slug], "requirement": ["junior"]},
+            "page": page,
+            "pageSize": 50,
+        }
+        try:
+            r = requests.post(NFJ_SEARCH_URL, headers=NFJ_HEADERS, json=body, timeout=15)
+            r.raise_for_status()
+            data = r.json()
+            if page == 1:
+                total_pages = data.get("totalPages", 1)
+                print(f"  [NoFluffJobs] Всего: {data.get('totalCount', 0)} вакансий, {total_pages} стр.")
 
-        link = f"https://justjoin.it/offers/{offer.get('id', '')}"
-        skills = offer.get("skills") or []
-        tech_stack = ", ".join(s.get("name", "") for s in skills[:6] if s.get("name"))
-        description = (offer.get("body") or offer.get("description") or "")[:1500]
+            for p in data.get("postings", []):
+                seniority = [s.lower() for s in (p.get("seniority") or [])]
+                if not any(s in ("junior", "intern", "trainee") for s in seniority):
+                    continue
 
-        jobs.append({
-            "title": title,
-            "company": offer.get("companyName", "Unknown"),
-            "link": link,
-            "tech_stack": tech_stack or _extract_tech(description),
-            "remote": remote_ok,
-            "city": offer.get("city", city),
-            "description": description,
-            "_source": "JustJoin",
-        })
+                title = p.get("title", "")
+                places = (p.get("location") or {}).get("places") or []
+                url_slug = places[0].get("url", p.get("id", "")) if places else p.get("id", "")
+                link = f"https://nofluffjobs.com/pl/oferta-pracy/{url_slug}"
 
-    print(f"  [JustJoin] Найдено подходящих: {len(jobs)}")
+                tiles = (p.get("tiles") or {}).get("values") or []
+                tech = [t["value"] for t in tiles if t.get("type") == "requirement"]
+                tech_stack = ", ".join(tech[:8])
+                description = f"Required skills: {', '.join(tech)}." if tech else ""
+
+                offer_city = places[0].get("city", city) if places else city
+                remote = (p.get("location") or {}).get("fullyRemote", False)
+
+                jobs.append({
+                    "title": title,
+                    "company": p.get("name", "Unknown"),
+                    "link": link,
+                    "tech_stack": tech_stack,
+                    "remote": remote,
+                    "city": offer_city,
+                    "description": description,
+                    "_source": "NoFluffJobs",
+                })
+        except Exception as e:
+            print(f"  [NoFluffJobs] Ошибка стр. {page}: {e}")
+            break
+        page += 1
+
+    print(f"  [NoFluffJobs] Найдено подходящих: {len(jobs)}")
     return jobs
 
 
@@ -202,7 +234,7 @@ def search_jobs(city: str = "Warsaw") -> tuple[list[dict], bool]:
 
     raw = []
     raw.extend(_fetch_adzuna(queries, city))
-    raw.extend(_fetch_justjoin(city))
+    raw.extend(_fetch_nofluffjobs(city))
     raw.extend(_fetch_remotive(city))
 
     # Deduplicate by link
