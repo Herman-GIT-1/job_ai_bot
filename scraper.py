@@ -9,9 +9,20 @@ load_dotenv()
 
 ADZUNA_APP_ID = os.environ.get("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.environ.get("ADZUNA_APP_KEY")
-BASE_URL = "https://api.adzuna.com/v1/api/jobs/pl/search/1"
+ADZUNA_BASE_URL = "https://api.adzuna.com/v1/api/jobs/pl/search/1"
+JUSTJOIN_URL = "https://justjoin.it/api/offers"
+REMOTIVE_URL = "https://remotive.com/api/remote-jobs"
 
 _groq = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+TECH_KEYWORDS = [
+    "Python", "SQL", "Java", "JavaScript", "TypeScript", "React", "Django",
+    "Flask", "FastAPI", "PostgreSQL", "MongoDB", "Docker", "Git",
+    "Power BI", "Excel", "R", "Machine Learning", "pandas", "scikit-learn",
+    "Alteryx", "Tableau", "Spark", "C#", "C++", "Go", "Kotlin", "Swift",
+]
+
+JUNIOR_KEYWORDS = ["intern", "junior", "trainee", "stażyst", "praktyk", "staż"]
 
 
 def build_queries(resume_text: str, city: str) -> tuple[list[str], bool]:
@@ -43,38 +54,24 @@ Return ONLY a valid JSON array of strings. No explanation."""
     return ["junior developer", "intern IT", "junior python", "stażysta programista"], True
 
 
-def is_relevant(title: str) -> bool:
-    title = title.lower()
-    return any(word in title for word in [
-        "intern", "junior", "trainee", "stażyst", "praktyk", "staż"
-    ])
+def _is_junior(title: str) -> bool:
+    t = title.lower()
+    return any(w in t for w in JUNIOR_KEYWORDS)
 
 
-def search_jobs(city: str = "Warsaw") -> tuple[list[dict], bool]:
+def _extract_tech(text: str) -> str:
+    found = [t for t in TECH_KEYWORDS if t.lower() in text.lower()]
+    return ", ".join(found[:6])
+
+
+def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
-        print("[Scraper] Brak ADZUNA_APP_ID lub ADZUNA_APP_KEY w pliku .env")
-        return [], False
-
-    try:
-        resume_text = load_resume()
-    except FileNotFoundError:
-        resume_text = ""
-        print("[Scraper] resume.txt не найдено — используются базовые запросы.")
-
-    queries, used_fallback = build_queries(resume_text, city)
-    print(f"[Scraper] Запросов: {len(queries)}{' (fallback)' if used_fallback else ''}")
+        print("[Adzuna] Нет ADZUNA_APP_ID или ADZUNA_APP_KEY — источник пропущен.")
+        return []
 
     jobs = []
-    seen_links = set()
-    tech_keywords = [
-        "Python", "SQL", "Java", "JavaScript", "TypeScript", "React", "Django",
-        "Flask", "FastAPI", "PostgreSQL", "MongoDB", "Docker", "Git",
-        "Power BI", "Excel", "R", "Machine Learning", "pandas", "scikit-learn",
-        "Alteryx", "Tableau", "Spark", "C#", "C++", "Go", "Kotlin", "Swift",
-    ]
-
     for query in queries:
-        print(f"  Ищу: {query}")
+        print(f"  [Adzuna] Ищу: {query}")
         params = {
             "app_id": ADZUNA_APP_ID,
             "app_key": ADZUNA_APP_KEY,
@@ -84,41 +81,139 @@ def search_jobs(city: str = "Warsaw") -> tuple[list[dict], bool]:
             "content-type": "application/json",
         }
         try:
-            response = requests.get(BASE_URL, params=params, timeout=15)
-            response.raise_for_status()
-            results = response.json().get("results", [])
-
-            for offer in results:
+            r = requests.get(ADZUNA_BASE_URL, params=params, timeout=15)
+            r.raise_for_status()
+            for offer in r.json().get("results", []):
                 title = offer.get("title", "")
-                if not is_relevant(title):
+                if not _is_junior(title):
                     continue
-
                 link = offer.get("redirect_url", "")
-                if not link or link in seen_links:
+                if not link:
                     continue
-                seen_links.add(link)
-
                 description = (offer.get("description") or "")[:1500]
-                found_tech = [t for t in tech_keywords if t.lower() in description.lower()]
-                tech_stack = ", ".join(found_tech[:6])
-
-                remote = "remote" in description.lower() or "zdaln" in description.lower()
-
-                company = (offer.get("company") or {}).get("display_name", "Unknown")
-                location = (offer.get("location") or {}).get("display_name", city)
-
                 jobs.append({
                     "title": title,
-                    "company": company,
+                    "company": (offer.get("company") or {}).get("display_name", "Unknown"),
                     "link": link,
-                    "tech_stack": tech_stack,
-                    "remote": remote,
-                    "city": location,
+                    "tech_stack": _extract_tech(description),
+                    "remote": "remote" in description.lower() or "zdaln" in description.lower(),
+                    "city": (offer.get("location") or {}).get("display_name", city),
                     "description": description,
+                    "_source": "Adzuna",
                 })
-
         except Exception as e:
-            print(f"  [Ошибка] '{query}': {e}")
+            print(f"  [Adzuna] Ошибка '{query}': {e}")
 
-    print(f"\n[Scraper] Найдено уникальных вакансий: {len(jobs)}")
+    return jobs
+
+
+def _fetch_justjoin(city: str) -> list[dict]:
+    print(f"  [JustJoin] Ищу вакансии в {city}...")
+    try:
+        r = requests.get(JUSTJOIN_URL, timeout=20)
+        r.raise_for_status()
+        all_offers = r.json()
+    except Exception as e:
+        print(f"  [JustJoin] Недоступен: {e}")
+        return []
+
+    city_lower = city.lower()
+    jobs = []
+    for offer in all_offers:
+        title = offer.get("title", "")
+        if not _is_junior(title):
+            exp = (offer.get("experienceLevel") or "").lower()
+            if exp not in ("junior", "intern"):
+                continue
+
+        offer_city = (offer.get("city") or "").lower()
+        remote_ok = offer.get("remote", False)
+        if not remote_ok and city_lower not in offer_city:
+            continue
+
+        link = f"https://justjoin.it/offers/{offer.get('id', '')}"
+        skills = offer.get("skills") or []
+        tech_stack = ", ".join(s.get("name", "") for s in skills[:6] if s.get("name"))
+        description = (offer.get("body") or offer.get("description") or "")[:1500]
+
+        jobs.append({
+            "title": title,
+            "company": offer.get("companyName", "Unknown"),
+            "link": link,
+            "tech_stack": tech_stack or _extract_tech(description),
+            "remote": remote_ok,
+            "city": offer.get("city", city),
+            "description": description,
+            "_source": "JustJoin",
+        })
+
+    print(f"  [JustJoin] Найдено подходящих: {len(jobs)}")
+    return jobs
+
+
+def _fetch_remotive(city: str) -> list[dict]:
+    """Remotive — remote IT jobs worldwide, no API key needed."""
+    print("  [Remotive] Ищу remote вакансии...")
+    try:
+        r = requests.get(
+            REMOTIVE_URL,
+            params={"category": "software-dev", "limit": 100},
+            timeout=15,
+        )
+        r.raise_for_status()
+        offers = r.json().get("jobs", [])
+    except Exception as e:
+        print(f"  [Remotive] Недоступен: {e}")
+        return []
+
+    jobs = []
+    for offer in offers:
+        title = offer.get("title", "")
+        if not _is_junior(title):
+            continue
+        link = offer.get("url", "")
+        if not link:
+            continue
+        description = (offer.get("description") or "")[:1500]
+        jobs.append({
+            "title": title,
+            "company": offer.get("company_name", "Unknown"),
+            "link": link,
+            "tech_stack": _extract_tech(description),
+            "remote": True,
+            "city": "Remote",
+            "description": description,
+            "_source": "Remotive",
+        })
+
+    print(f"  [Remotive] Найдено подходящих: {len(jobs)}")
+    return jobs
+
+
+def search_jobs(city: str = "Warsaw") -> tuple[list[dict], bool]:
+    try:
+        resume_text = load_resume()
+    except FileNotFoundError:
+        resume_text = ""
+        print("[Scraper] resume.txt не найдено — используются базовые запросы.")
+
+    queries, used_fallback = build_queries(resume_text, city)
+    print(f"[Scraper] Запросов для Adzuna: {len(queries)}{' (fallback)' if used_fallback else ''}")
+
+    raw = []
+    raw.extend(_fetch_adzuna(queries, city))
+    raw.extend(_fetch_justjoin(city))
+    raw.extend(_fetch_remotive(city))
+
+    # Deduplicate by link
+    seen = set()
+    jobs = []
+    for job in raw:
+        link = job["link"]
+        if link and link not in seen:
+            seen.add(link)
+            job.pop("_source", None)
+            jobs.append(job)
+
+    print(f"\n[Scraper] Итого уникальных вакансий: {len(jobs)}")
     return jobs, used_fallback
