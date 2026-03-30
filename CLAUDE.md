@@ -17,10 +17,10 @@ cover letters, and notifies the user via Telegram.
 
 | Component | Tool | Note |
 |---|---|---|
-| Job source | Adzuna REST API | Free tier, `ADZUNA_APP_ID` + `ADZUNA_APP_KEY` required |
+| Job sources | Adzuna + JustJoin.it + Remotive + NoFluffJobs | Adzuna needs keys; others are keyless. Each fails silently |
 | AI model | Groq `llama-3.1-8b-instant` | Free — prototype only; replace with Claude API at Stage 2 |
-| Database | SQLite (`jobs.db`) | Local only, single user |
-| Notifications | Telegram Bot (python-telegram-bot) | Single user (hardcoded chat_id) |
+| Database | SQLite (`jobs.db`) | Local only; `feat/chat-id` branch adds `chat_id` scoping |
+| Notifications | Telegram Bot (python-telegram-bot) | Single user (owner guard via `TELEGRAM_CHAT_ID`) |
 | Env management | python-dotenv | |
 
 > ⚠️ **Groq is temporary.** It exists only to validate the pipeline without cost.
@@ -48,7 +48,7 @@ TELEGRAM_CHAT_ID=    # your personal Telegram chat ID
 ## Commands
 
 ```bash
-python main.py --scrape   # Fetch jobs via SerpAPI → save to jobs.db
+python main.py --scrape   # Fetch jobs (Adzuna + JustJoin + Remotive + NoFluffJobs) → save to jobs.db
 python main.py --score    # Score jobs with AI + generate cover letters
 python main.py --apply    # Open top-scored jobs (score >= 7) in browser
 python main.py --bot      # Start Telegram bot
@@ -62,17 +62,18 @@ Telegram bot commands: `/start` `/resume` `/scrape` `/score` `/jobs` `/stats` `/
 ## Architecture (Current)
 
 ```
-Adzuna API → scraper.py → database.py (SQLite)
-                                ↓
-                      ai_score.py + cover_letter.py (Groq)
-                                ↓
-                      bot.py (Telegram) / open_jobs.py (browser)
+Adzuna API ─┐
+JustJoin.it ├─→ scraper.py → database.py (SQLite)
+Remotive    │                       ↓
+NoFluffJobs ┘           ai_score.py + cover_letter.py (Groq)
+                                    ↓
+                        bot.py (Telegram) / open_jobs.py (browser)
 ```
 
 | Module | Role |
 |---|---|
 | `main.py` | CLI entry point (`argparse`), orchestrates pipeline stages |
-| `scraper.py` | Calls Groq to build city-aware queries from resume, fetches via Adzuna API |
+| `scraper.py` | Fetches from 4 sources; Groq builds Adzuna queries; results deduplicated by link |
 | `database.py` | SQLite wrapper: schema with score, cover_letter, applied columns |
 | `ai_score.py` | AI scores each job 0–10 by comparing resume to job requirements |
 | `cover_letter.py` | AI generates 100–120 word tailored cover letters per job |
@@ -85,8 +86,10 @@ Adzuna API → scraper.py → database.py (SQLite)
 ## Key Details
 
 - **Resume context** — `resume.txt` is read fresh on every call inside `ai_score.py`, `cover_letter.py`, and `scraper.py` via `resume_parser.load_resume()`. Uploading a new resume via bot takes effect immediately without restart.
-- **Job source** — Adzuna REST API (`https://api.adzuna.com/v1/api/jobs/pl/search/1`). Requires `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` (free tier at developer.adzuna.com). Groq generates 5 city-aware search queries from resume; each query = 1 API call (up to 50 results each).
-- **Database schema** — `jobs` table: `id, title, company, link, tech_stack, remote, city, score, cover_letter, applied, description`. `link` has UNIQUE constraint. `applied`: 0=pending, 1=applied, 2=skipped. No migrations system — schema changes require `ALTER TABLE` or deleting `jobs.db`.
+- **Job sources** — 4 sources in `scraper.py`, each as a separate `_fetch_*()` function. All fail silently and return `[]` on error. Results are deduplicated by `link` at the end of `search_jobs()`. Adzuna requires `ADZUNA_APP_ID`/`ADZUNA_APP_KEY`; JustJoin.it, Remotive, NoFluffJobs are keyless.
+- **Database schema (`main` branch)** — `jobs` table: `id, title, company, link, tech_stack, remote, city, score, cover_letter, applied, description`. `link` UNIQUE. `applied`: 0=pending, 1=applied, 2=skipped.
+- **Database schema (`feat/chat-id` branch)** — `jobs` adds `chat_id INTEGER`; UNIQUE changes to `(link, chat_id)`; all public functions require `chat_id` param; `CLI_CHAT_ID = 0` used by `main.py`. `user_settings` table already has `chat_id` as PK.
+- **No test suite** — manual testing only.
 - **No test suite** — manual testing only.
 
 ---
@@ -216,8 +219,9 @@ When replacing temporary modules, follow these contracts:
 - `generate_letter(job: dict) → str` must return plain text string
 - Model, client and API key are internal to each module
 
-**Replacing Adzuna (`scraper.py`):**
-- `search_jobs(city: str) → tuple[list[dict], bool]` must return `(jobs, used_fallback)`
+**Replacing/extending job sources (`scraper.py`):**
+- Add a new `_fetch_*(city) → list[dict]` function; call it inside `search_jobs()`
+- `search_jobs(city: str) → tuple[list[dict], bool]` interface must stay unchanged
 - Each dict must have keys: `title, company, link, tech_stack, remote, city, description`
 
 **Replacing SQLite (`database.py`):**
