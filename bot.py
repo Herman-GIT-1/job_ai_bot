@@ -184,12 +184,18 @@ async def resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @owner_only
 async def jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    vacancies = get_jobs_to_apply()
+    try:
+        min_score = int(context.args[0]) if context.args else 7
+        min_score = max(0, min(10, min_score))
+    except (ValueError, IndexError):
+        min_score = 7
+
+    vacancies = get_jobs_to_apply(min_score)
     if not vacancies:
-        await update.message.reply_text("Нет новых вакансий с оценкой ≥ 7.")
+        await update.message.reply_text(f"Нет новых вакансий с оценкой ≥ {min_score}.")
         return
 
-    await update.message.reply_text(f"Найдено вакансий: {len(vacancies)}")
+    await update.message.reply_text(f"Найдено вакансий (score ≥ {min_score}): {len(vacancies)}")
 
     for job_id, title, company, link, cover_letter in vacancies:
         preview = (cover_letter or "")[:300]
