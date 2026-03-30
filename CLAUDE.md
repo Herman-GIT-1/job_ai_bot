@@ -18,13 +18,10 @@ cover letters, and notifies the user via Telegram.
 | Component | Tool | Note |
 |---|---|---|
 | Job sources | Adzuna + JustJoin.it + Remotive + NoFluffJobs | Adzuna needs keys; others are keyless. Each fails silently |
-| AI model | Groq `llama-3.1-8b-instant` | Free — prototype only; replace with Claude API at Stage 2 |
-| Database | SQLite (`jobs.db`) | Local only; `feat/chat-id` branch adds `chat_id` scoping |
+| AI model | Anthropic Claude API (`claude-sonnet-4-6`) | Uses OpenAI-compatible endpoint via `client.chat.completions` |
+| Database | SQLite (`jobs.db`) | Local only; connection pool (WAL, size=5); all ops scoped to `chat_id` |
 | Notifications | Telegram Bot (python-telegram-bot) | Single user (owner guard via `TELEGRAM_CHAT_ID`) |
 | Env management | python-dotenv | |
-
-> ⚠️ **Groq is temporary.** It exists only to validate the pipeline without cost.
-> Before any public launch, replace with Claude API (see Scaling Plan below).
 
 ---
 
@@ -36,7 +33,7 @@ pip install -r requirements.txt
 
 Create `.env` in project root:
 ```
-GROQ_API_KEY=        # console.groq.com — free
+ANTHROPIC_API_KEY=   # console.anthropic.com
 ADZUNA_APP_ID=       # developer.adzuna.com — free tier
 ADZUNA_APP_KEY=      # developer.adzuna.com — free tier
 TELEGRAM_BOT_TOKEN=  # from @BotFather on Telegram
@@ -63,33 +60,33 @@ Telegram bot commands: `/start` `/resume` `/scrape` `/score` `/jobs` `/stats` `/
 
 ```
 Adzuna API ─┐
-JustJoin.it ├─→ scraper.py → database.py (SQLite)
+JustJoin.it ├─→ scraper.py → database.py (SQLite, pool)
 Remotive    │                       ↓
-NoFluffJobs ┘           ai_score.py + cover_letter.py (Groq)
+NoFluffJobs ┘       ai_score.py + cover_letter.py (Claude API)
                                     ↓
-                        bot.py (Telegram) / open_jobs.py (browser)
+                    bot.py (Telegram) / open_jobs.py (browser)
 ```
 
 | Module | Role |
 |---|---|
-| `main.py` | CLI entry point (`argparse`), orchestrates pipeline stages |
-| `scraper.py` | Fetches from 4 sources; Groq builds Adzuna queries; results deduplicated by link |
-| `database.py` | SQLite wrapper: schema with score, cover_letter, applied columns |
+| `main.py` | CLI entry point (`argparse`), orchestrates pipeline stages; uses `CLI_CHAT_ID = 0` |
+| `scraper.py` | Fetches from 4 sources; Claude builds Adzuna queries; results deduplicated by link |
+| `database.py` | SQLite wrapper with WAL connection pool; all public functions scoped to `chat_id` |
 | `ai_score.py` | AI scores each job 0–10 by comparing resume to job requirements |
 | `cover_letter.py` | AI generates 100–120 word tailored cover letters per job |
-| `resume_parser.py` | Parses TXT/PDF/DOCX → plain text; `load_resume()` / `save_resume()` |
-| `open_jobs.py` | Opens jobs with score ≥ 7 in browser, marks applied after confirmation |
+| `resume_parser.py` | Parses TXT/PDF/DOCX → plain text; `load_resume(chat_id)` / `save_resume(text, chat_id)` → DB |
+| `open_jobs.py` | Opens jobs with score ≥ 7 in browser, marks applied after confirmation; uses `CLI_CHAT_ID` |
 | `bot.py` | Telegram bot: /scrape /score /jobs /stats /resume /stop + file upload |
 
 ---
 
 ## Key Details
 
-- **Resume context** — `resume.txt` is read fresh on every call inside `ai_score.py`, `cover_letter.py`, and `scraper.py` via `resume_parser.load_resume()`. Uploading a new resume via bot takes effect immediately without restart.
+- **Resume storage** — resume text is stored in `user_settings.resume_text` per `chat_id`. `load_resume(chat_id)` reads from DB; `save_resume(text, chat_id)` writes to DB. Uploading a new resume via bot takes effect immediately without restart. No `resume.txt` file is used.
 - **Job sources** — 4 sources in `scraper.py`, each as a separate `_fetch_*()` function. All fail silently and return `[]` on error. Results are deduplicated by `link` at the end of `search_jobs()`. Adzuna requires `ADZUNA_APP_ID`/`ADZUNA_APP_KEY`; JustJoin.it, Remotive, NoFluffJobs are keyless.
-- **Database schema (`main` branch)** — `jobs` table: `id, title, company, link, tech_stack, remote, city, score, cover_letter, applied, description`. `link` UNIQUE. `applied`: 0=pending, 1=applied, 2=skipped.
-- **Database schema (`feat/chat-id` branch)** — `jobs` adds `chat_id INTEGER`; UNIQUE changes to `(link, chat_id)`; all public functions require `chat_id` param; `CLI_CHAT_ID = 0` used by `main.py`. `user_settings` table already has `chat_id` as PK.
-- **No test suite** — manual testing only.
+- **Database schema** — `jobs` table: `id, chat_id, title, company, link, tech_stack, remote, city, score, cover_letter, applied, description`. UNIQUE on `(link, chat_id)`. `applied`: 0=pending, 1=applied, 2=skipped. `user_settings` table: `chat_id, language, resume_text`.
+- **Connection pool** — `database.py` keeps 5 SQLite connections in a `queue.Queue`. Each public function acquires a connection via `_get_conn()` context manager and returns it after use. WAL mode is enabled on all connections.
+- **CLI sentinel** — `CLI_CHAT_ID = 0` (exported from `database.py`) is used by `main.py` and `open_jobs.py` so the CLI pipeline works with the same scoped schema as the bot.
 - **No test suite** — manual testing only.
 
 ---
@@ -101,20 +98,19 @@ When making changes, avoid decisions that block the transitions below.
 
 ### Stage 1 — MVP (now)
 - Single user, runs locally
-- Free APIs: Groq + Adzuna
+- Claude API for scoring and letter generation
 - Telegram bot for notifications
-- SQLite database
+- SQLite database with connection pool; all data scoped by `chat_id`
+- Resume stored in `user_settings.resume_text` (DB, not file)
 
 ### Stage 2 — Multi-user Beta
 **Trigger:** first external users onboarding
 
 Planned changes:
-- Replace **SQLite → PostgreSQL** (one DB, user_id per row)
-- Replace **Groq → Anthropic Claude API** (`claude-haiku-4-5` or `claude-sonnet-4-6`) for scoring and letter generation
-- Adzuna remains as job source (or upgrade to paid plan for higher quota)
+- Replace **SQLite → PostgreSQL** (one DB, `chat_id` per row — schema is already ready)
+- Remove `CLI_CHAT_ID` sentinel when CLI tools are deprecated
 - Add **FastAPI backend** for user registration and resume upload
 - Add **Celery + Redis** for async per-user job processing
-- Each user has own `resume.txt` stored server-side
 - Deploy to **Railway.app** or VPS (bot runs 24/7)
 
 ### Stage 3 — Web Product
@@ -149,10 +145,10 @@ Types:
 ### Examples
 ```
 feat: add Telegram bot with inline apply/skip buttons
-fix: add cover_letter column to jobs table schema
-refactor: move resume path resolution to use __file__
-docs: update CLAUDE.md with scaling plan
-chore: add TELEGRAM_BOT_TOKEN to .env.example
+fix: pass CLI_CHAT_ID to get_jobs_to_apply and mark_applied in open_jobs.py
+refactor: replace singleton conn/cursor with WAL connection pool
+docs: update CLAUDE.md with current architecture
+chore: add ANTHROPIC_API_KEY to .env.example
 ```
 
 ### Rules
@@ -183,18 +179,18 @@ await bot.send_message(user.chat_id, text)
 
 ### User identity
 Every user is identified by `chat_id` (Telegram's unique ID per chat).
-When the database moves to PostgreSQL, every table that is currently
-single-user must gain a `user_id` or `chat_id` foreign key:
+When the database moves to PostgreSQL, the schema is already ready — every table
+has `chat_id` as a scoping key:
 
 ```
-users (chat_id, username, resume_text, created_at)
-jobs  (id, chat_id → users, title, company, ...)
+user_settings (chat_id PK, language, resume_text)
+jobs          (id, chat_id, title, company, ...)  — UNIQUE (link, chat_id)
 ```
 
 ### Onboarding flow (when opening to external users)
 ```
 /start → bot asks to upload resume (.txt or .pdf)
-       → saves chat_id + resume to DB
+       → saves chat_id + resume to user_settings
        → confirms: "Scout is ready. Use /jobs to see matches."
 ```
 
@@ -205,7 +201,7 @@ jobs  (id, chat_id → users, title, company, ...)
 
 ### What Claude Code must never do
 - Hardcode `CHAT_ID` inside functions or module-level logic
-- Store resume as a single global file when adding multi-user features
+- Store resume as a single global file — resume is now per `chat_id` in DB
 - Write DB queries without `WHERE chat_id = ?` when user context exists
 
 ---
@@ -214,9 +210,9 @@ jobs  (id, chat_id → users, title, company, ...)
 
 When replacing temporary modules, follow these contracts:
 
-**Replacing Groq (`ai_score.py`, `cover_letter.py`):**
-- `evaluate(job: dict) → int` must return integer 0–10
-- `generate_letter(job: dict) → str` must return plain text string
+**Replacing the AI model (`ai_score.py`, `cover_letter.py`):**
+- `evaluate(job: dict, resume: str = None) → int` must return integer 0–10
+- `generate_letter(job: dict, resume: str = None) → str` must return plain text string
 - Model, client and API key are internal to each module
 
 **Replacing/extending job sources (`scraper.py`):**
@@ -226,7 +222,9 @@ When replacing temporary modules, follow these contracts:
 
 **Replacing SQLite (`database.py`):**
 - Public interface must stay identical:
-  `save_job()`, `get_jobs()`, `get_jobs_to_apply()`, `mark_applied()`, `update_job()`, `get_job_link()`, `get_stats()`
-- Internals (connection, cursor) are implementation details
+  `save_job()`, `get_jobs()`, `get_jobs_to_apply()`, `mark_applied()`, `update_job()`,
+  `get_job_link()`, `get_cover_letter()`, `get_stats()`, `count_jobs()`, `reset_scores()`,
+  `get_user_lang()`, `set_user_lang()`, `get_resume()`, `set_resume()`
+- Internals (pool, connections) are implementation details
 
 > Keeping these interfaces stable means swapping one module never breaks others.
