@@ -35,7 +35,8 @@ cursor.execute(
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS user_settings (
     chat_id INTEGER PRIMARY KEY,
-    language TEXT NOT NULL DEFAULT 'en'
+    language TEXT NOT NULL DEFAULT 'en',
+    resume_text TEXT
 )
 """)
 
@@ -50,6 +51,12 @@ except sqlite3.OperationalError:
 # Add description column if missing
 try:
     cursor.execute("ALTER TABLE jobs ADD COLUMN description TEXT DEFAULT ''")
+except sqlite3.OperationalError:
+    pass
+
+# Add resume_text column to user_settings if missing
+try:
+    cursor.execute("ALTER TABLE user_settings ADD COLUMN resume_text TEXT")
 except sqlite3.OperationalError:
     pass
 
@@ -73,6 +80,22 @@ def set_user_lang(chat_id: int, lang: str) -> None:
         "INSERT INTO user_settings (chat_id, language) VALUES (?, ?)"
         " ON CONFLICT(chat_id) DO UPDATE SET language=excluded.language",
         (chat_id, lang),
+    )
+    conn.commit()
+
+
+def get_resume(chat_id: int) -> str | None:
+    row = conn.execute(
+        "SELECT resume_text FROM user_settings WHERE chat_id=?", (chat_id,)
+    ).fetchone()
+    return row[0] if row else None
+
+
+def set_resume(chat_id: int, text: str) -> None:
+    conn.execute(
+        "INSERT INTO user_settings (chat_id, resume_text) VALUES (?, ?)"
+        " ON CONFLICT(chat_id) DO UPDATE SET resume_text=excluded.resume_text",
+        (chat_id, text),
     )
     conn.commit()
 

@@ -23,7 +23,7 @@ def run_score():
         print("Нет вакансий для оценки.")
         return
     print(f"Оцениваем {len(pending)} вакансий...\n")
-    resume = load_resume()
+    resume = load_resume(CLI_CHAT_ID)
     for job in pending:
         job_id, title, company, link, tech_stack, description = job
         print(f"Analyzing: {title} @ {company}")

@@ -66,7 +66,7 @@ def _lang_keyboard() -> InlineKeyboardMarkup:
 async def _run_score(msg, chat_id: int, lang_code: str) -> None:
     """Score all unscored jobs for this user. msg — telegram Message to reply to."""
     try:
-        resume = load_resume()
+        resume = load_resume(chat_id)
     except FileNotFoundError:
         await msg.reply_text(t(lang_code, "score_no_resume"))
         return
@@ -169,7 +169,7 @@ async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = _lang(update)
     try:
-        load_resume()
+        load_resume(update.effective_chat.id)
         await update.message.reply_text(t(lang_code, "start_with_resume"))
     except FileNotFoundError:
         # First-time: show language picker together with the welcome message
@@ -242,7 +242,8 @@ async def cmd_jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_resume_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = _lang(update)
     try:
-        text = load_resume()
+        chat_id = update.effective_chat.id
+        text = load_resume(chat_id)
         preview = text[:600].strip()
         header = t(lang_code, "resume_show_header", chars=len(text))
         await update.message.reply_text(
@@ -267,9 +268,10 @@ async def cmd_resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         tg_file = await doc.get_file()
         file_bytes = await tg_file.download_as_bytearray()
+        chat_id = update.effective_chat.id
         text = parse_resume(bytes(file_bytes), filename)
         validate(text)
-        save_resume(text)
+        save_resume(text, chat_id)
         await update.message.reply_text(t(lang_code, "resume_saved", chars=len(text)))
     except (ValueError, ImportError) as e:
         await update.message.reply_text(t(lang_code, "resume_error", error=e))
