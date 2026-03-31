@@ -1,7 +1,22 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "WebFetch(domain:www.sonara.ai)",
+      "Bash(python -c \":*)",
+      "Bash(git -C \"c:/Users/job_ai_bot\" add scraper.py)",
+      "Bash(git -C \"c:/Users/job_ai_bot\" commit -m \"feat: add NoFluffJobs as job source \\(POST API, no key required\\)\")",
+      "Bash(git -C \"c:/Users/job_ai_bot\" add bot.py strings.py database.py)",
+      "Bash(git -C \"c:/Users/job_ai_bot\" commit -m \"feat: add multilingual support \\(EN/RU/PL\\) and inline city/action buttons\")",
+      "Bash(git -C \"c:/Users/job_ai_bot\" add bot.py database.py)",
+      "Bash(git -C \"c:/Users/job_ai_bot\" commit -m \"fix: show job description instead of cover letter preview in /jobs cards\")",
+      "Bash(ls c:/Users/job_ai_bot/*.py)",
+      "Bash(git -C c:/Users/job_ai_bot log --oneline -8)",
+      "Bash(git -C c:/Users/job_ai_bot checkout -b feat/chat-id)",
+      "Bash(git -C c:/Users/job_ai_bot add database.py bot.py main.py)",
+      "Bash(git -C:*)",
+      "Bash(python -c \"import database; print\\(''OK''\\)\")",
+      "Bash(python -c \"import bot; print\\(''OK''\\)\")"
     ]
   }
 }

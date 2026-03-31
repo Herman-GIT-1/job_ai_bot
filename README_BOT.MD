@@ -13,7 +13,7 @@ pip install -r requirements.txt
 Создай файл `.env` в корне проекта (`.env.example` есть в репозитории):
 
 ```env
-GROQ_API_KEY=your_groq_api_key_here
+CLAUDE_API_KEY=your_anthropic_api_key_here
 ADZUNA_APP_ID=your_adzuna_app_id_here
 ADZUNA_APP_KEY=your_adzuna_app_key_here
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
@@ -22,7 +22,7 @@ TELEGRAM_CHAT_ID=your_telegram_chat_id_here
 
 | Переменная | Где получить |
 |---|---|
-| `GROQ_API_KEY` | console.groq.com → API Keys |
+| `CLAUDE_API_KEY` | console.claude.com → API Keys |
 | `ADZUNA_APP_ID` | developer.adzuna.com → My Apps |
 | `ADZUNA_APP_KEY` | developer.adzuna.com → My Apps |
 | `TELEGRAM_BOT_TOKEN` | @BotFather в Telegram |
