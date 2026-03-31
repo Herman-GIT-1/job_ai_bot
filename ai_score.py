@@ -7,47 +7,51 @@ load_dotenv()
 
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
+
 def evaluate(job, resume=None):
     if resume is None:
         resume = load_resume()
+
     tech_stack = job.get("tech_stack", "")
     tech_info = f"Tech stack: {tech_stack}" if tech_stack else ""
     description = job.get("description", "")
-    desc_info = f"Description:\n{description}" if description else ""
+    desc_info = f"Description:\n{description[:600]}" if description else ""
 
-    prompt = f"""You are a senior recruiter. Score how well this candidate fits the job opening.
+    # Cached block: static instructions + resume (same across all jobs in a run).
+    # Anthropic caches this after the first call; subsequent reads cost 10% of normal.
+    # Minimum cacheable size: 1024 tokens (Sonnet/Opus), 2048 tokens (Haiku).
+    cached_prefix = f"""You are a senior recruiter. Score how well this candidate fits a job opening.
 
 ## Candidate Resume:
 {resume}
 
-## Job Opening:
-Title: {job["title"]}
-Company: {job.get("company", "Unknown")}
-{tech_info}
-{desc_info}
+Score the match 0–10:
+1. Technical skills overlap
+2. Seniority fit (intern/junior/mid)
+3. Domain relevance
+4. Education fit
+5. Growth potential (projects, certs, self-learning)
 
-## Instructions:
-Analyze the resume and the job, then score the match from 0 to 10 based on:
-1. Technical skills overlap — compare the candidate's actual skills with what the job requires
-2. Seniority fit — does the role level (intern/junior/mid) match the candidate's experience?
-3. Domain relevance — do the candidate's projects and background relate to this role?
-4. Education fit — is the candidate's field of study relevant?
-5. Growth potential — certifications, side projects, self-learning
+Return ONLY a single integer 0–10. No explanation."""
 
-## Scoring Guide:
-- 9–10: Excellent fit
-- 7–8: Good fit
-- 5–6: Partial fit
-- 3–4: Weak fit
-- 0–2: Poor fit
-
-Return ONLY a single integer from 0 to 10. No explanation. No punctuation. Just the number."""
+    job_block = (
+        f"## Job:\nTitle: {job['title']}\nCompany: {job.get('company', '')}"
+        + (f"\n{tech_info}" if tech_info else "")
+        + (f"\n{desc_info}" if desc_info else "")
+    )
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
             max_tokens=5,
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": cached_prefix,
+                     "cache_control": {"type": "ephemeral"}},
+                    {"type": "text", "text": job_block},
+                ],
+            }],
         )
         return int(response.content[0].text.strip())
     except Exception as e:

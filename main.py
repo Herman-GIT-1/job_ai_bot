@@ -25,11 +25,11 @@ def run_score():
     print(f"Оцениваем {len(pending)} вакансий...\n")
     resume = load_resume(CLI_CHAT_ID)
     for job in pending:
-        job_id, title, company, link, tech_stack, description = job
+        job_id, title, company, _, tech_stack, description = job
         print(f"Analyzing: {title} @ {company}")
         job_dict = {"title": title, "company": company, "tech_stack": tech_stack, "description": description}
         score = evaluate(job_dict, resume=resume)
-        letter = generate(job_dict, resume=resume)
+        letter = generate(job_dict, resume=resume) if score >= 7 else ""
         update_job(job_id, CLI_CHAT_ID, score, letter)
         print(f"Score: {score}/10")
 

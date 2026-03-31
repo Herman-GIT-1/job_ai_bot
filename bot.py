@@ -86,12 +86,16 @@ async def _run_score(msg, chat_id: int, lang_code: str) -> None:
     async def score_one(job_id, job):
         nonlocal done
         async with sem:
-            await loop.run_in_executor(
-                None,
-                lambda j=job, jid=job_id, r=resume: update_job(
-                    jid, chat_id, evaluate(j, resume=r), generate_letter(j, resume=r)
-                ),
+            score = await loop.run_in_executor(
+                None, lambda j=job, r=resume: evaluate(j, resume=r)
             )
+            letter = (
+                await loop.run_in_executor(
+                    None, lambda j=job, r=resume: generate_letter(j, resume=r)
+                )
+                if score >= 7 else ""
+            )
+            update_job(job_id, chat_id, score, letter)
         done += 1
         if done % 5 == 0 or done == total:
             await status_msg.edit_text(t(lang_code, "score_progress", done=done, total=total))
