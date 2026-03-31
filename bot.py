@@ -18,7 +18,7 @@ from strings import t
 load_dotenv()
 
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
-CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
+ADMIN_CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
 
 ASK_CITY = 0
 
@@ -33,11 +33,11 @@ def _lang(update: Update) -> str:
     return get_user_lang(update.effective_chat.id)
 
 
-def owner_only(func):
-    """Restrict handler to the owner's chat_id. Works for commands and messages."""
+def admin_only(func):
+    """Restrict handler to the bot admin. Used only for /stop."""
     @functools.wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if update.effective_chat.id != CHAT_ID:
+        if update.effective_chat.id != ADMIN_CHAT_ID:
             if update.message:
                 await update.message.reply_text(t("en", "access_denied"))
             return
@@ -109,10 +109,15 @@ async def _run_score(msg, chat_id: int, lang_code: str) -> None:
         for job_id, title, company, _link, tech_stack, description in pending
     ])
 
+    # Completion summary + high-score alert (NEXT_STEPS 4.1)
+    high_count = len(get_jobs_to_apply(chat_id, min_score=8))
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton(t(lang_code, "btn_view_jobs"), callback_data="action:jobs"),
     ]])
-    await status_msg.edit_text(t(lang_code, "score_done", total=total), reply_markup=keyboard)
+    summary = t(lang_code, "score_done", total=total)
+    if high_count:
+        summary += "\n\n" + t(lang_code, "score_high_alert", high=high_count)
+    await status_msg.edit_text(summary, reply_markup=keyboard)
 
 
 async def _send_jobs(msg, chat_id: int, min_score: int, lang_code: str) -> None:
@@ -169,33 +174,28 @@ async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
 # Command handlers
 # ---------------------------------------------------------------------------
 
-@owner_only
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = _lang(update)
     try:
         load_resume(update.effective_chat.id)
         await update.message.reply_text(t(lang_code, "start_with_resume"))
     except FileNotFoundError:
-        # First-time: show language picker together with the welcome message
         await update.message.reply_text(
             t(lang_code, "start_no_resume"),
             reply_markup=_lang_keyboard(),
         )
 
 
-@owner_only
 async def cmd_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = _lang(update)
     await update.message.reply_text(t(lang_code, "lang_choose"), reply_markup=_lang_keyboard())
 
 
-@owner_only
 async def cmd_score(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     await _run_score(update.message, chat_id, _lang(update))
 
 
-@owner_only
 async def cmd_rescore(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     lang_code = _lang(update)
@@ -204,7 +204,6 @@ async def cmd_rescore(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _run_score(update.message, chat_id, lang_code)
 
 
-@owner_only
 async def cmd_scrape_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = _lang(update)
     await update.message.reply_text(
@@ -214,7 +213,6 @@ async def cmd_scrape_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE
     return ASK_CITY
 
 
-@owner_only
 async def cmd_scrape_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """User typed a custom city name."""
     city = update.message.text.strip()
@@ -223,14 +221,12 @@ async def cmd_scrape_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-@owner_only
 async def cmd_scrape_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = _lang(update)
     await update.message.reply_text(t(lang_code, "scrape_cancelled"))
     return ConversationHandler.END
 
 
-@owner_only
 async def cmd_jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     lang_code = _lang(update)
@@ -242,7 +238,6 @@ async def cmd_jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _send_jobs(update.message, chat_id, min_score, lang_code)
 
 
-@owner_only
 async def cmd_resume_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = _lang(update)
     try:
@@ -257,7 +252,6 @@ async def cmd_resume_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t(lang_code, "resume_not_found"))
 
 
-@owner_only
 async def cmd_resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = _lang(update)
     doc = update.message.document
@@ -283,7 +277,6 @@ async def cmd_resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(t(lang_code, "resume_upload_failed", error=e))
 
 
-@owner_only
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     lang_code = _lang(update)
@@ -301,7 +294,7 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-@owner_only
+@admin_only
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(t(_lang(update), "stop_msg"))
     await context.application.stop()
@@ -316,12 +309,6 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     chat_id = query.message.chat.id
-
-    # Guard: only owner can trigger callbacks
-    if chat_id != CHAT_ID:
-        await query.answer(t("en", "access_denied"), show_alert=True)
-        return
-
     data = query.data
     lang_code = get_user_lang(chat_id)
 
