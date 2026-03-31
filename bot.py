@@ -63,15 +63,15 @@ def _lang_keyboard() -> InlineKeyboardMarkup:
 # Core logic helpers (shared between commands and button callbacks)
 # ---------------------------------------------------------------------------
 
-async def _run_score(msg, lang_code: str) -> None:
-    """Score all unscored jobs. msg — telegram Message to reply to."""
+async def _run_score(msg, chat_id: int, lang_code: str) -> None:
+    """Score all unscored jobs for this user. msg — telegram Message to reply to."""
     try:
-        resume = load_resume()
+        resume = load_resume(chat_id)
     except FileNotFoundError:
         await msg.reply_text(t(lang_code, "score_no_resume"))
         return
 
-    pending = get_jobs()
+    pending = get_jobs(chat_id)
     if not pending:
         await msg.reply_text(t(lang_code, "score_no_jobs"))
         return
@@ -86,12 +86,16 @@ async def _run_score(msg, lang_code: str) -> None:
     async def score_one(job_id, job):
         nonlocal done
         async with sem:
-            await loop.run_in_executor(
-                None,
-                lambda j=job, jid=job_id, r=resume: update_job(
-                    jid, evaluate(j, resume=r), generate_letter(j, resume=r)
-                ),
+            score = await loop.run_in_executor(
+                None, lambda j=job, r=resume: evaluate(j, resume=r)
             )
+            letter = (
+                await loop.run_in_executor(
+                    None, lambda j=job, r=resume: generate_letter(j, resume=r)
+                )
+                if score >= 7 else ""
+            )
+            update_job(job_id, chat_id, score, letter)
         done += 1
         if done % 5 == 0 or done == total:
             await status_msg.edit_text(t(lang_code, "score_progress", done=done, total=total))
@@ -111,9 +115,9 @@ async def _run_score(msg, lang_code: str) -> None:
     await status_msg.edit_text(t(lang_code, "score_done", total=total), reply_markup=keyboard)
 
 
-async def _send_jobs(msg, min_score: int, lang_code: str) -> None:
+async def _send_jobs(msg, chat_id: int, min_score: int, lang_code: str) -> None:
     """Send job cards with Apply/Skip/Letter buttons."""
-    vacancies = get_jobs_to_apply(min_score)
+    vacancies = get_jobs_to_apply(chat_id, min_score)
     if not vacancies:
         await msg.reply_text(t(lang_code, "jobs_none", min_score=min_score))
         return
@@ -136,7 +140,7 @@ async def _send_jobs(msg, min_score: int, lang_code: str) -> None:
         await msg.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
 
 
-async def _run_scrape(city: str, msg, lang_code: str) -> None:
+async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
     """Run scraping for city and send results. msg — telegram Message to reply to."""
     await msg.reply_text(t(lang_code, "scrape_searching", city=city))
     loop = asyncio.get_running_loop()
@@ -147,9 +151,9 @@ async def _run_scrape(city: str, msg, lang_code: str) -> None:
 
     saved = 0
     for job in jobs:
-        before = count_jobs()
-        save_job(job)
-        if count_jobs() > before:
+        before = count_jobs(chat_id)
+        save_job(job, chat_id)
+        if count_jobs(chat_id) > before:
             saved += 1
 
     keyboard = InlineKeyboardMarkup([[
@@ -169,7 +173,7 @@ async def _run_scrape(city: str, msg, lang_code: str) -> None:
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = _lang(update)
     try:
-        load_resume()
+        load_resume(update.effective_chat.id)
         await update.message.reply_text(t(lang_code, "start_with_resume"))
     except FileNotFoundError:
         # First-time: show language picker together with the welcome message
@@ -187,15 +191,17 @@ async def cmd_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @owner_only
 async def cmd_score(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await _run_score(update.message, _lang(update))
+    chat_id = update.effective_chat.id
+    await _run_score(update.message, chat_id, _lang(update))
 
 
 @owner_only
 async def cmd_rescore(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
     lang_code = _lang(update)
-    reset_scores()
+    reset_scores(chat_id)
     await update.message.reply_text(t(lang_code, "rescore_start"))
-    await _run_score(update.message, lang_code)
+    await _run_score(update.message, chat_id, lang_code)
 
 
 @owner_only
@@ -212,7 +218,8 @@ async def cmd_scrape_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def cmd_scrape_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """User typed a custom city name."""
     city = update.message.text.strip()
-    await _run_scrape(city, update.message, _lang(update))
+    chat_id = update.effective_chat.id
+    await _run_scrape(city, update.message, chat_id, _lang(update))
     return ConversationHandler.END
 
 
@@ -225,20 +232,22 @@ async def cmd_scrape_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @owner_only
 async def cmd_jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
     lang_code = _lang(update)
     try:
         min_score = int(context.args[0]) if context.args else 7
         min_score = max(0, min(10, min_score))
     except (ValueError, IndexError):
         min_score = 7
-    await _send_jobs(update.message, min_score, lang_code)
+    await _send_jobs(update.message, chat_id, min_score, lang_code)
 
 
 @owner_only
 async def cmd_resume_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = _lang(update)
     try:
-        text = load_resume()
+        chat_id = update.effective_chat.id
+        text = load_resume(chat_id)
         preview = text[:600].strip()
         header = t(lang_code, "resume_show_header", chars=len(text))
         await update.message.reply_text(
@@ -263,9 +272,10 @@ async def cmd_resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         tg_file = await doc.get_file()
         file_bytes = await tg_file.download_as_bytearray()
+        chat_id = update.effective_chat.id
         text = parse_resume(bytes(file_bytes), filename)
         validate(text)
-        save_resume(text)
+        save_resume(text, chat_id)
         await update.message.reply_text(t(lang_code, "resume_saved", chars=len(text)))
     except (ValueError, ImportError) as e:
         await update.message.reply_text(t(lang_code, "resume_error", error=e))
@@ -275,8 +285,9 @@ async def cmd_resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @owner_only
 async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
     lang_code = _lang(update)
-    s = get_stats()
+    s = get_stats(chat_id)
     avg = f"{s['avg_score']:.1f}" if s["avg_score"] is not None else "—"
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton(t(lang_code, "btn_view_jobs"), callback_data="action:jobs"),
@@ -304,18 +315,20 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
+    chat_id = query.message.chat.id
+
     # Guard: only owner can trigger callbacks
-    if query.message.chat.id != CHAT_ID:
+    if chat_id != CHAT_ID:
         await query.answer(t("en", "access_denied"), show_alert=True)
         return
 
     data = query.data
-    lang_code = get_user_lang(query.message.chat.id)
+    lang_code = get_user_lang(chat_id)
 
     # --- language selection ---
     if data.startswith("lang:"):
         new_lang = data.split(":", 1)[1]
-        set_user_lang(query.message.chat.id, new_lang)
+        set_user_lang(chat_id, new_lang)
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(t(new_lang, "lang_set"))
         return
@@ -324,20 +337,20 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data.startswith("city:"):
         city = data.split(":", 1)[1]
         await query.edit_message_reply_markup(reply_markup=None)
-        await _run_scrape(city, query.message, lang_code)
+        await _run_scrape(city, query.message, chat_id, lang_code)
         return
 
     # --- quick actions from stats / score done buttons ---
     if data.startswith("action:"):
         action = data.split(":", 1)[1]
         if action == "jobs":
-            await _send_jobs(query.message, 7, lang_code)
+            await _send_jobs(query.message, chat_id, 7, lang_code)
         elif action == "score":
-            await _run_score(query.message, lang_code)
+            await _run_score(query.message, chat_id, lang_code)
         elif action == "rescore":
-            reset_scores()
+            reset_scores(chat_id)
             await query.message.reply_text(t(lang_code, "rescore_start"))
-            await _run_score(query.message, lang_code)
+            await _run_score(query.message, chat_id, lang_code)
         return
 
     # --- job card actions: apply / skip / letter ---
@@ -348,7 +361,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     job_id = int(job_id_str)
 
     if action == "letter":
-        row = get_cover_letter(job_id)
+        row = get_cover_letter(job_id, chat_id)
         if not row or not row[2]:
             await query.answer(t(lang_code, "letter_not_found"), show_alert=True)
             return
@@ -357,13 +370,13 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_document(document=letter.encode("utf-8"), filename=filename)
 
     elif action == "apply":
-        link = get_job_link(job_id)
-        mark_applied(job_id, status=1)
+        link = get_job_link(job_id, chat_id)
+        mark_applied(job_id, chat_id, status=1)
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(t(lang_code, "applied_msg", link=link))
 
     elif action == "skip":
-        mark_applied(job_id, status=2)
+        mark_applied(job_id, chat_id, status=2)
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(t(lang_code, "skipped_msg"))
 
@@ -376,10 +389,11 @@ async def conv_city_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles city quick-pick button while inside the scrape conversation."""
     query = update.callback_query
     await query.answer()
+    chat_id = query.message.chat.id
     city = query.data.split(":", 1)[1]
-    lang_code = get_user_lang(query.message.chat.id)
+    lang_code = get_user_lang(chat_id)
     await query.edit_message_reply_markup(reply_markup=None)
-    await _run_scrape(city, query.message, lang_code)
+    await _run_scrape(city, query.message, chat_id, lang_code)
     return ConversationHandler.END
 
 

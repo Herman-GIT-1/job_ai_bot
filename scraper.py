@@ -2,7 +2,7 @@ import json
 import os
 import requests
 from dotenv import load_dotenv
-from groq import Groq
+from anthropic import Anthropic
 from resume_parser import load_resume
 
 load_dotenv()
@@ -21,7 +21,7 @@ NFJ_HEADERS = {
     "Referer": "https://nofluffjobs.com/pl/praca",
 }
 
-_groq = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+_claude = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 TECH_KEYWORDS = [
     "Python", "SQL", "Java", "JavaScript", "TypeScript", "React", "Django",
@@ -34,7 +34,7 @@ JUNIOR_KEYWORDS = ["intern", "junior", "trainee", "stażyst", "praktyk", "staż"
 
 
 def build_queries(resume_text: str, city: str) -> tuple[list[str], bool]:
-    """Use Groq to generate 5 job search terms from resume.
+    """Use Claude to generate 5 job search terms from resume.
     Returns (queries, used_fallback)."""
     prompt = f"""Analyze this resume and return a JSON array of 5 short job search strings
 for junior/intern IT positions in {city}, Poland.
@@ -48,12 +48,12 @@ Resume:
 Return ONLY a valid JSON array of strings. No explanation."""
 
     try:
-        response = _groq.chat.completions.create(
-            model="llama-3.1-8b-instant",
+        response = _claude.messages.create(
+            model="claude-sonnet-4-6",
             max_tokens=200,
             messages=[{"role": "user", "content": prompt}]
         )
-        queries = json.loads(response.choices[0].message.content.strip())
+        queries = json.loads(response.content[0].text.strip())
         if isinstance(queries, list) and queries:
             return queries, False
     except Exception as e:

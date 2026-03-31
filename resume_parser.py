@@ -1,6 +1,5 @@
-import os
+from database import get_resume, set_resume, CLI_CHAT_ID
 
-RESUME_PATH = os.path.join(os.path.dirname(__file__), "resume.txt")
 MIN_LENGTH = 100
 
 
@@ -15,14 +14,15 @@ def parse_resume(file_bytes: bytes, filename: str) -> str:
     raise ValueError(f"Неподдерживаемый формат: .{ext}. Используй TXT, PDF или DOCX.")
 
 
-def save_resume(text: str) -> None:
-    with open(RESUME_PATH, "w", encoding="utf-8") as f:
-        f.write(text)
+def save_resume(text: str, chat_id: int) -> None:
+    set_resume(chat_id, text)
 
 
-def load_resume() -> str:
-    with open(RESUME_PATH, encoding="utf-8") as f:
-        return f.read()
+def load_resume(chat_id: int = CLI_CHAT_ID) -> str:
+    text = get_resume(chat_id)
+    if text is None:
+        raise FileNotFoundError(f"Резюме для chat_id={chat_id} не найдено в БД.")
+    return text
 
 
 def validate(text: str) -> None:

@@ -1,5 +1,5 @@
 requests
-groq
+anthropic
 python-dotenv
 python-telegram-bot
 pypdf
