@@ -1,11 +1,11 @@
 import os
-from groq import Groq
+from anthropic import Anthropic
 from dotenv import load_dotenv
 from resume_parser import load_resume
 
 load_dotenv()
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 def generate_letter(job, resume=None):
     if resume is None:
@@ -35,12 +35,12 @@ Guidelines:
 Write only the cover letter text. No subject line, no placeholders."""
 
     try:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
             max_tokens=300,
             messages=[{"role": "user", "content": prompt}]
         )
-        return response.choices[0].message.content
+        return response.content[0].text
     except Exception as e:
         print(f"[Cover letter error] {e}")
         return "Cover letter generation failed."

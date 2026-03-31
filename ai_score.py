@@ -1,11 +1,11 @@
 import os
-from groq import Groq
+from anthropic import Anthropic
 from dotenv import load_dotenv
 from resume_parser import load_resume
 
 load_dotenv()
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 def evaluate(job, resume=None):
     if resume is None:
@@ -44,12 +44,12 @@ Analyze the resume and the job, then score the match from 0 to 10 based on:
 Return ONLY a single integer from 0 to 10. No explanation. No punctuation. Just the number."""
 
     try:
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
             max_tokens=5,
             messages=[{"role": "user", "content": prompt}]
         )
-        return int(response.choices[0].message.content.strip())
+        return int(response.content[0].text.strip())
     except Exception as e:
         print(f"[Score error] {e}")
         return 5
