@@ -7,17 +7,7 @@ Branch `feat/chat-id` — all sub-tasks complete, ready to merge into main.
 
 ---
 
-## Priority 1 — Merge `feat/chat-id` → main
-
-All DB changes are done on this branch. Before merging:
-
-- Delete `jobs.db` to start fresh (existing rows may have `chat_id = NULL` from the old schema)
-- Manual smoke test end-to-end: upload resume via bot → `/scrape` → `/score` → `/jobs`
-- Merge into main
-
----
-
-## Priority 2 — PostgreSQL migration
+## Priority 1 — PostgreSQL migration
 
 **File:** `database.py`
 **Trigger:** first external users onboarding
@@ -35,7 +25,7 @@ Only the engine needs to change:
 
 ---
 
-## Priority 3 — Deploy to Railway.app for 24/7 uptime
+## Priority 2 — Deploy to Railway.app for 24/7 uptime
 
 Minimum path:
 - Push merged `main` to GitHub
