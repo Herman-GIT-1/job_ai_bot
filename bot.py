@@ -152,15 +152,16 @@ SCRAPE_COOLDOWN_MINUTES = 60
 
 async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
     """Run scraping for city and send results. msg — telegram Message to reply to."""
-    last = get_last_scrape(chat_id)
-    if last is not None:
-        elapsed = datetime.datetime.now(datetime.timezone.utc) - last
-        remaining = SCRAPE_COOLDOWN_MINUTES * 60 - int(elapsed.total_seconds())
-        if remaining > 0:
-            await msg.reply_text(
-                t(lang_code, "scrape_cooldown", minutes=remaining // 60 + 1)
-            )
-            return
+    if chat_id != CHAT_ID:
+        last = get_last_scrape(chat_id)
+        if last is not None:
+            elapsed = datetime.datetime.now(datetime.timezone.utc) - last
+            remaining = SCRAPE_COOLDOWN_MINUTES * 60 - int(elapsed.total_seconds())
+            if remaining > 0:
+                await msg.reply_text(
+                    t(lang_code, "scrape_cooldown", minutes=remaining // 60 + 1)
+                )
+                return
 
     set_last_scrape(chat_id)
     await msg.reply_text(t(lang_code, "scrape_searching", city=city))
