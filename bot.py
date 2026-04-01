@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import functools
 import os
 from dotenv import load_dotenv
@@ -8,7 +9,8 @@ from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
 
 from database import (get_jobs_to_apply, get_job_link, get_cover_letter, mark_applied,
                       get_stats, get_jobs, update_job, count_jobs, reset_scores,
-                      save_job, get_user_lang, set_user_lang)
+                      save_job, get_user_lang, set_user_lang,
+                      get_last_scrape, set_last_scrape)
 from scraper import search_jobs
 from resume_parser import parse_resume, save_resume, load_resume, validate
 from ai_score import evaluate
@@ -145,8 +147,22 @@ async def _send_jobs(msg, chat_id: int, min_score: int, lang_code: str) -> None:
         await msg.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
 
 
+SCRAPE_COOLDOWN_MINUTES = 60
+
+
 async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
     """Run scraping for city and send results. msg — telegram Message to reply to."""
+    last = get_last_scrape(chat_id)
+    if last is not None:
+        elapsed = datetime.datetime.now(datetime.timezone.utc) - last
+        remaining = SCRAPE_COOLDOWN_MINUTES * 60 - int(elapsed.total_seconds())
+        if remaining > 0:
+            await msg.reply_text(
+                t(lang_code, "scrape_cooldown", minutes=remaining // 60 + 1)
+            )
+            return
+
+    set_last_scrape(chat_id)
     await msg.reply_text(t(lang_code, "scrape_searching", city=city))
     loop = asyncio.get_running_loop()
     jobs, used_fallback = await loop.run_in_executor(None, search_jobs, city)

@@ -44,6 +44,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "score_progress": "Scoring {done}/{total}…",
         "score_done": "Done. Scored: {total} jobs.",
         "score_high_alert": "⭐ {high} job(s) scored ≥ 8 — view them with /jobs 8",
+        "scrape_cooldown": "Please wait {minutes} min before searching again.",
         "rescore_start": "Scores reset. Re-scoring now…",
         # --- jobs ---
         "jobs_none": "No new jobs with score ≥ {min_score}.",
@@ -111,6 +112,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "score_progress": "Оцениваю {done}/{total}…",
         "score_done": "Готово. Оценено вакансий: {total}.",
         "score_high_alert": "⭐ {high} вакансий с оценкой ≥ 8 — смотри /jobs 8",
+        "scrape_cooldown": "Подожди ещё {minutes} мин. перед следующим поиском.",
         "rescore_start": "Оценки сброшены. Запускаю оценку заново…",
         "jobs_none": "Нет новых вакансий с оценкой ≥ {min_score}.",
         "jobs_found": "Найдено вакансий (score ≥ {min_score}): {count}",
@@ -173,6 +175,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "score_progress": "Oceniam {done}/{total}…",
         "score_done": "Gotowe. Oceniono ofert: {total}.",
         "score_high_alert": "⭐ {high} ofert z oceną ≥ 8 — sprawdź /jobs 8",
+        "scrape_cooldown": "Poczekaj jeszcze {minutes} min. przed następnym wyszukiwaniem.",
         "rescore_start": "Oceny zresetowane. Ponowna ocena…",
         "jobs_none": "Brak nowych ofert z oceną ≥ {min_score}.",
         "jobs_found": "Znalezione oferty (ocena ≥ {min_score}): {count}",

@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import requests
 from dotenv import load_dotenv
 from anthropic import Anthropic
@@ -111,6 +112,7 @@ def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
                 })
         except Exception as e:
             print(f"  [Adzuna] Ошибка '{query}': {e}")
+        time.sleep(0.5)  # avoid hammering Adzuna between queries
 
     return jobs
 

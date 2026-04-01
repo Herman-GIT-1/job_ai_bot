@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS chat_id BIGINT",
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS resume_text TEXT",
+                "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS last_scrape_at TIMESTAMPTZ",
             ]:
                 cur.execute(ddl)
         conn.commit()
@@ -103,6 +104,28 @@ def get_resume(chat_id: int) -> str | None:
             )
             row = cur.fetchone()
     return row[0] if row else None
+
+
+def get_last_scrape(chat_id: int):
+    """Return last_scrape_at as aware datetime, or None if never scraped."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT last_scrape_at FROM user_settings WHERE chat_id = %s", (chat_id,)
+            )
+            row = cur.fetchone()
+    return row[0] if row else None
+
+
+def set_last_scrape(chat_id: int) -> None:
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO user_settings (chat_id, last_scrape_at) VALUES (%s, NOW())"
+                " ON CONFLICT (chat_id) DO UPDATE SET last_scrape_at = NOW()",
+                (chat_id,),
+            )
+        conn.commit()
 
 
 def set_resume(chat_id: int, text: str) -> None:
