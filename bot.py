@@ -1,8 +1,10 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 import asyncio
 import datetime
 import functools
 import os
-from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
                           MessageHandler, ConversationHandler, filters, ContextTypes)
@@ -16,8 +18,6 @@ from resume_parser import parse_resume, save_resume, load_resume, validate
 from ai_score import evaluate
 from cover_letter import generate_letter
 from strings import t
-
-load_dotenv()
 
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 ADMIN_CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
@@ -152,7 +152,7 @@ SCRAPE_COOLDOWN_MINUTES = 60
 
 async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
     """Run scraping for city and send results. msg — telegram Message to reply to."""
-    if chat_id != CHAT_ID:
+    if chat_id != ADMIN_CHAT_ID:
         last = get_last_scrape(chat_id)
         if last is not None:
             elapsed = datetime.datetime.now(datetime.timezone.utc) - last
@@ -311,6 +311,11 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+async def cmd_help(update: Update, _context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    await update.message.reply_text(t(lang_code, "help_text"))
+
+
 @admin_only
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(t(_lang(update), "stop_msg"))
@@ -335,6 +340,19 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         set_user_lang(chat_id, new_lang)
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(t(new_lang, "lang_set"))
+        try:
+            load_resume(chat_id)
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton(t(new_lang, "btn_score_now"),  callback_data="action:score"),
+                InlineKeyboardButton(t(new_lang, "btn_view_jobs"),  callback_data="action:jobs"),
+            ], [
+                InlineKeyboardButton(t(new_lang, "btn_help"),       callback_data="action:help"),
+            ]])
+            await query.message.reply_text(
+                t(new_lang, "lang_set_next_has_resume"), reply_markup=keyboard
+            )
+        except FileNotFoundError:
+            await query.message.reply_text(t(new_lang, "lang_set_next_no_resume"))
         return
 
     # --- city selection (inside scrape conversation) ---
@@ -355,6 +373,8 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reset_scores(chat_id)
             await query.message.reply_text(t(lang_code, "rescore_start"))
             await _run_score(query.message, chat_id, lang_code)
+        elif action == "help":
+            await query.message.reply_text(t(lang_code, "help_text"))
         return
 
     # --- job card actions: apply / skip / letter ---
@@ -405,8 +425,22 @@ async def conv_city_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # App entry point
 # ---------------------------------------------------------------------------
 
+async def _set_commands(app: Application) -> None:
+    await app.bot.set_my_commands([
+        ("start",    "Welcome message"),
+        ("scrape",   "Search for jobs"),
+        ("score",    "Score jobs with AI"),
+        ("rescore",  "Reset scores and re-score"),
+        ("jobs",     "Show top jobs (optional min score)"),
+        ("resume",   "View current resume"),
+        ("stats",    "Statistics"),
+        ("help",     "Command reference"),
+        ("language", "Change language"),
+    ])
+
+
 def main():
-    app = Application.builder().token(TOKEN).build()
+    app = Application.builder().token(TOKEN).post_init(_set_commands).build()
 
     scrape_conv = ConversationHandler(
         entry_points=[CommandHandler("scrape", cmd_scrape_ask_city)],
@@ -420,6 +454,7 @@ def main():
     )
 
     app.add_handler(CommandHandler("start",    cmd_start))
+    app.add_handler(CommandHandler("help",     cmd_help))
     app.add_handler(CommandHandler("language", cmd_language))
     app.add_handler(CommandHandler("resume",   cmd_resume_show))
     app.add_handler(CommandHandler("score",    cmd_score))

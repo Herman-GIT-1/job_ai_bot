@@ -68,9 +68,36 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_view_jobs": "📋 View jobs",
         "btn_rescore": "🔄 Re-score",
         "btn_score_now": "🤖 Score now",
+        "btn_help": "❓ Help",
         # --- language ---
         "lang_choose": "Choose language:",
         "lang_set": "Language set to English 🇬🇧",
+        # --- after language set ---
+        "lang_set_next_no_resume": (
+            "To get started, send your resume file (.txt, .pdf, .docx).\n"
+            "I'll use it to search for relevant jobs and score them."
+        ),
+        "lang_set_next_has_resume": "Resume already loaded. What would you like to do?",
+        # --- help ---
+        "help_text": (
+            "🤖 Job Bot — Command Reference\n\n"
+            "📄 Resume\n"
+            "/resume — view current resume\n"
+            "Send file — upload (.txt, .pdf, .docx)\n\n"
+            "🔍 Search\n"
+            "/scrape — search for jobs (asks for city)\n"
+            "/cancel — cancel city selection\n\n"
+            "⭐ Scoring\n"
+            "/score — score all found jobs with AI\n"
+            "/rescore — reset scores and re-score\n"
+            "/jobs [N] — show jobs with score ≥ N (default 7)\n\n"
+            "📊 Info\n"
+            "/stats — show statistics\n"
+            "/start — welcome message\n\n"
+            "⚙️ Settings\n"
+            "/language — change language\n"
+            "/stop — stop the bot (admin only)"
+        ),
         # --- misc ---
         "access_denied": "Access denied.",
         "stop_msg": "Stopping bot…",
@@ -133,8 +160,35 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_view_jobs": "📋 Смотреть вакансии",
         "btn_rescore": "🔄 Переоценить",
         "btn_score_now": "🤖 Оценить сейчас",
+        "btn_help": "❓ Помощь",
         "lang_choose": "Выбери язык:",
         "lang_set": "Язык изменён на Русский 🇷🇺",
+        # --- after language set ---
+        "lang_set_next_no_resume": (
+            "Для начала отправь файл с резюме (.txt, .pdf, .docx).\n"
+            "Я использую его для поиска подходящих вакансий и их оценки."
+        ),
+        "lang_set_next_has_resume": "Резюме уже загружено. Что делать дальше?",
+        # --- help ---
+        "help_text": (
+            "🤖 Job Bot — Список команд\n\n"
+            "📄 Резюме\n"
+            "/resume — посмотреть текущее резюме\n"
+            "Отправить файл — загрузить (.txt, .pdf, .docx)\n\n"
+            "🔍 Поиск\n"
+            "/scrape — искать вакансии (спросит город)\n"
+            "/cancel — отменить выбор города\n\n"
+            "⭐ Оценка\n"
+            "/score — оценить все найденные вакансии через AI\n"
+            "/rescore — сбросить оценки и переоценить\n"
+            "/jobs [N] — показать вакансии с оценкой ≥ N (по умолчанию 7)\n\n"
+            "📊 Информация\n"
+            "/stats — статистика\n"
+            "/start — приветственное сообщение\n\n"
+            "⚙️ Настройки\n"
+            "/language — сменить язык\n"
+            "/stop — остановить бота (только admin)"
+        ),
         "access_denied": "Доступ запрещён.",
         "stop_msg": "Останавливаю бота…",
     },
@@ -196,8 +250,35 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_view_jobs": "📋 Pokaż oferty",
         "btn_rescore": "🔄 Oceń ponownie",
         "btn_score_now": "🤖 Oceń teraz",
+        "btn_help": "❓ Pomoc",
         "lang_choose": "Wybierz język:",
         "lang_set": "Język zmieniony na Polski 🇵🇱",
+        # --- after language set ---
+        "lang_set_next_no_resume": (
+            "Na start wyślij plik CV (.txt, .pdf, .docx).\n"
+            "Użyję go do wyszukiwania i oceny ofert pracy."
+        ),
+        "lang_set_next_has_resume": "CV już wgrane. Co chcesz zrobić?",
+        # --- help ---
+        "help_text": (
+            "🤖 Job Bot — Lista komend\n\n"
+            "📄 CV\n"
+            "/resume — sprawdź aktualne CV\n"
+            "Wyślij plik — wgraj (.txt, .pdf, .docx)\n\n"
+            "🔍 Wyszukiwanie\n"
+            "/scrape — szukaj ofert (zapyta o miasto)\n"
+            "/cancel — anuluj wybór miasta\n\n"
+            "⭐ Ocenianie\n"
+            "/score — oceń oferty przez AI\n"
+            "/rescore — zresetuj oceny i oceń ponownie\n"
+            "/jobs [N] — pokaż oferty z oceną ≥ N (domyślnie 7)\n\n"
+            "📊 Informacje\n"
+            "/stats — statystyki\n"
+            "/start — wiadomość powitalna\n\n"
+            "⚙️ Ustawienia\n"
+            "/language — zmień język\n"
+            "/stop — zatrzymaj bota (tylko admin)"
+        ),
         "access_denied": "Brak dostępu.",
         "stop_msg": "Zatrzymuję bota…",
     },

@@ -5,7 +5,19 @@
       "Bash(grep -r \"^import\\\\|^from\" /c/Users/job_ai_bot/*.py)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(python -c \":*)"
+      "Bash(python -c \":*)",
+      "Bash(python test_database.py)",
+      "Bash(psql \"postgresql://postgres@localhost:5432/postgres\" -c \"\\\\du\")",
+      "Bash(psql -U postgres -c \"\\\\du\")",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Users/User//**)",
+      "Read(//c/Users/User/PostgreSQL//**)",
+      "Bash(/c/Users/User/PostgreSQL/18/bin/pg_isready -h localhost -p 5432)",
+      "Bash(/c/Users/User/PostgreSQL/18/bin/psql -U postgres -h localhost -p 5432 -c '\\\\du')",
+      "Bash(/c/Users/User/PostgreSQL/18/bin/psql -U job_bot_user -h localhost -p 5432 -d job_bot -c 'SELECT current_user, current_database\\(\\);')",
+      "Bash(python -c ':*)",
+      "Bash(python main.py)",
+      "Bash(python -c 'import ast:*)"
     ],
     "deny": [
       "Bash(git push)"
