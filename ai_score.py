@@ -25,12 +25,14 @@ def evaluate(job, resume=None):
 ## Candidate Resume:
 {resume}
 
-Score the match 0–10:
+Score the match 0–10 based ONLY on what is written in this resume above.
+Do not assume skills not mentioned. Do not apply generic industry standards.
+Evaluate this specific candidate against this specific job:
 1. Technical skills overlap
 2. Seniority fit (intern/junior/mid)
-3. Domain relevance
+3. Domain relevance to candidate's background
 4. Education fit
-5. Growth potential (projects, certs, self-learning)
+5. Growth potential given candidate's actual trajectory
 
 Return ONLY a single integer 0–10. No explanation."""
 
