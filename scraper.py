@@ -31,40 +31,72 @@ TECH_KEYWORDS = [
     "Alteryx", "Tableau", "Spark", "C#", "C++", "Go", "Kotlin", "Swift",
 ]
 
-JUNIOR_KEYWORDS = ["intern", "junior", "trainee", "stażyst", "praktyk", "staż"]
+JUNIOR_KEYWORDS = [
+    "intern", "junior", "trainee", "stażyst", "praktyk", "staż",
+    "absolwent", "młodszy", "entry-level", "entry level", "graduate",
+    "associate", "bez doświadczenia", "apprentice",
+]
+
+# Remotive API categories — used for dynamic category selection
+REMOTIVE_CATEGORIES = [
+    "software-dev", "data", "marketing", "design", "devops",
+    "finance", "product", "writing", "hr", "qa",
+]
+
+# Job titles to exclude — irrelevant for students regardless of "junior" label
+_EXCLUDED_TITLE_KEYWORDS = [
+    "driver", "kierowca", "cashier", "kasjer", "cleaner", "sprzątacz",
+    "warehouse", "magazyn", "security", "ochroniar", "delivery", "kurier",
+    "waiter", "kelner", "cook", "kucharz", "barista", "bartender",
+]
 
 
-def build_queries(resume_text: str, city: str) -> tuple[list[str], bool]:
-    """Use Claude to generate 5 job search terms from resume.
-    Returns (queries, used_fallback)."""
-    prompt = f"""Analyze this resume and return a JSON array of 5 short job search strings
-for junior/intern IT positions in {city}, Poland.
-Each string is a "what" keyword for a job search API (2-4 words max).
-Examples: "junior python developer", "data analyst intern", "sql junior".
-Always include at least one Polish term like "stażysta programista".
+def build_queries(resume_text: str, city: str) -> tuple[list[str], bool, list[str]]:
+    """Use Claude to generate job search terms and Remotive categories from resume.
+    Returns (queries, used_fallback, remotive_categories)."""
+    prompt = f"""Analyze this resume and return a JSON object with two keys:
+- "queries": array of 5 short job search strings for junior/intern positions in {city}, Poland.
+  Each string is a "what" keyword for a job search API (2-4 words max).
+  Base them on the person's actual field of study and skills — do NOT restrict to IT.
+  Examples for various profiles:
+    IT student:         "junior python developer", "data analyst intern"
+    Marketing student:  "junior marketing specialist", "social media intern"
+    Finance student:    "junior financial analyst", "accounting trainee"
+    Design student:     "junior graphic designer", "ux design intern"
+  Always include at least one Polish term (e.g. "stażysta analityk", "praktykant marketing").
+  NEVER include jobs like driver, cashier, warehouse, security, delivery, cook, waiter.
+
+- "remotive_categories": array of 1-3 Remotive API category slugs that best match this resume.
+  Choose ONLY from: {REMOTIVE_CATEGORIES}
 
 Resume:
 {resume_text}
 
-Return ONLY a valid JSON array of strings. No explanation."""
+Return ONLY a valid JSON object. No explanation."""
 
     try:
         response = _claude.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=200,
+            max_tokens=300,
             messages=[{"role": "user", "content": prompt}]
         )
-        queries = json.loads(response.content[0].text.strip())
+        result = json.loads(response.content[0].text.strip())
+        queries = result.get("queries", [])
+        categories = result.get("remotive_categories", ["software-dev"])
         if isinstance(queries, list) and queries:
-            return queries, False
+            # Validate categories against known list
+            categories = [c for c in categories if c in REMOTIVE_CATEGORIES] or ["software-dev"]
+            return queries, False, categories
     except Exception as e:
         print(f"[Scraper] Не удалось сгенерировать запросы через AI: {e}")
 
-    return ["junior developer", "intern IT", "junior python", "stażysta programista"], True
+    return ["junior developer", "intern IT", "junior python", "stażysta programista"], True, ["software-dev"]
 
 
 def _is_junior(title: str) -> bool:
     t = title.lower()
+    if any(w in t for w in _EXCLUDED_TITLE_KEYWORDS):
+        return False
     return any(w in t for w in JUNIOR_KEYWORDS)
 
 
@@ -185,59 +217,65 @@ def _fetch_nofluffjobs(city: str) -> list[dict]:
     return jobs
 
 
-def _fetch_remotive(city: str) -> list[dict]:
-    """Remotive — remote IT jobs worldwide, no API key needed."""
-    print("  [Remotive] Ищу remote вакансии...")
-    try:
-        r = requests.get(
-            REMOTIVE_URL,
-            params={"category": "software-dev", "limit": 100},
-            timeout=15,
-        )
-        r.raise_for_status()
-        offers = r.json().get("jobs", [])
-    except Exception as e:
-        print(f"  [Remotive] Недоступен: {e}")
-        return []
-
+def _fetch_remotive(categories: list[str]) -> list[dict]:
+    """Remotive — remote jobs worldwide, no API key needed.
+    Queries each category from the provided list."""
     jobs = []
-    for offer in offers:
-        title = offer.get("title", "")
-        if not _is_junior(title):
+    seen_links: set[str] = set()
+
+    for category in categories:
+        print(f"  [Remotive] Ищу категорию: {category}...")
+        try:
+            r = requests.get(
+                REMOTIVE_URL,
+                params={"category": category, "limit": 100},
+                timeout=15,
+            )
+            r.raise_for_status()
+            offers = r.json().get("jobs", [])
+        except Exception as e:
+            print(f"  [Remotive] Ошибка категории '{category}': {e}")
             continue
-        link = offer.get("url", "")
-        if not link:
-            continue
-        description = (offer.get("description") or "")[:1500]
-        jobs.append({
-            "title": title,
-            "company": offer.get("company_name", "Unknown"),
-            "link": link,
-            "tech_stack": _extract_tech(description),
-            "remote": True,
-            "city": "Remote",
-            "description": description,
-            "_source": "Remotive",
-        })
+
+        for offer in offers:
+            title = offer.get("title", "")
+            if not _is_junior(title):
+                continue
+            link = offer.get("url", "")
+            if not link or link in seen_links:
+                continue
+            seen_links.add(link)
+            description = (offer.get("description") or "")[:1500]
+            jobs.append({
+                "title": title,
+                "company": offer.get("company_name", "Unknown"),
+                "link": link,
+                "tech_stack": _extract_tech(description),
+                "remote": True,
+                "city": "Remote",
+                "description": description,
+                "_source": "Remotive",
+            })
 
     print(f"  [Remotive] Найдено подходящих: {len(jobs)}")
     return jobs
 
 
-def search_jobs(city: str = "Warsaw") -> tuple[list[dict], bool]:
+def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], bool]:
     try:
-        resume_text = load_resume()
+        resume_text = load_resume(chat_id)
     except FileNotFoundError:
         resume_text = ""
         print("[Scraper] resume.txt не найдено — используются базовые запросы.")
 
-    queries, used_fallback = build_queries(resume_text, city)
+    queries, used_fallback, remotive_categories = build_queries(resume_text, city)
     print(f"[Scraper] Запросов для Adzuna: {len(queries)}{' (fallback)' if used_fallback else ''}")
+    print(f"[Scraper] Категории Remotive: {remotive_categories}")
 
     raw = []
     raw.extend(_fetch_adzuna(queries, city))
     raw.extend(_fetch_nofluffjobs(city))
-    raw.extend(_fetch_remotive(city))
+    raw.extend(_fetch_remotive(remotive_categories))
 
     # Deduplicate by link
     seen = set()
