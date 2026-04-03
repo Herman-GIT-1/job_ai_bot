@@ -166,7 +166,7 @@ async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
     set_last_scrape(chat_id)
     await msg.reply_text(t(lang_code, "scrape_searching", city=city))
     loop = asyncio.get_running_loop()
-    jobs, used_fallback = await loop.run_in_executor(None, search_jobs, city)
+    jobs, used_fallback = await loop.run_in_executor(None, lambda: search_jobs(city, chat_id))
 
     if used_fallback:
         await msg.reply_text(t(lang_code, "scrape_fallback_warning"))
