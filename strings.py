@@ -31,10 +31,13 @@ TEXTS: dict[str, dict[str, str]] = {
         # --- scrape ---
         "scrape_ask_city": "Which city to search in?\nOr type a custom city name below.\n\n/cancel to abort.",
         "scrape_searching": "Searching for jobs in {city}… ~30 seconds.",
+        "scrape_no_resume_hint": (
+            "No resume uploaded yet — search will use generic queries.\n"
+            "Send a .txt/.pdf/.docx file to get personalised results."
+        ),
         "scrape_fallback_warning": (
-            "Resume not found or AI could not process it — "
-            "search used generic queries.\n"
-            "Upload a resume (.txt/.pdf/.docx) for more accurate results."
+            "AI query generation failed — search used generic queries.\n"
+            "This is temporary; your resume is saved."
         ),
         "scrape_done": "Done. Found: {found}, new in DB: {saved}.",
         "scrape_cancelled": "Search cancelled.",
@@ -104,6 +107,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "🤖 Job Bot — Command Reference\n\n"
             "📄 Resume\n"
             "/resume — view current resume\n"
+            "/feedback — get AI feedback on your resume\n"
             "Send file — upload (.txt, .pdf, .docx)\n\n"
             "🔍 Search\n"
             "/scrape — search for jobs (asks for city)\n"
@@ -148,10 +152,13 @@ TEXTS: dict[str, dict[str, str]] = {
         "resume_upload_failed": "Не удалось обработать файл: {error}",
         "scrape_ask_city": "В каком городе искать?\nИли введи название города вручную.\n\n/cancel — отменить.",
         "scrape_searching": "Ищу вакансии в {city}… ~30 секунд.",
+        "scrape_no_resume_hint": (
+            "Резюме ещё не загружено — поиск будет выполнен по базовым запросам.\n"
+            "Отправь файл .txt/.pdf/.docx чтобы получить персональные результаты."
+        ),
         "scrape_fallback_warning": (
-            "Резюме не найдено или AI не смог его обработать — "
-            "поиск выполнен по базовым запросам.\n"
-            "Загрузи резюме (.txt/.pdf/.docx) для более точных результатов."
+            "AI не смог сформировать запросы — поиск выполнен по базовым запросам.\n"
+            "Это временная ошибка, твоё резюме сохранено."
         ),
         "scrape_done": "Готово. Найдено: {found}, новых в базе: {saved}.",
         "scrape_cancelled": "Поиск отменён.",
@@ -212,6 +219,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "🤖 Job Bot — Список команд\n\n"
             "📄 Резюме\n"
             "/resume — посмотреть текущее резюме\n"
+            "/feedback — получить AI-анализ резюме\n"
             "Отправить файл — загрузить (.txt, .pdf, .docx)\n\n"
             "🔍 Поиск\n"
             "/scrape — искать вакансии (спросит город)\n"
@@ -255,10 +263,13 @@ TEXTS: dict[str, dict[str, str]] = {
         "resume_upload_failed": "Nie udało się przetworzyć pliku: {error}",
         "scrape_ask_city": "W jakim mieście szukać?\nMożesz też wpisać nazwę miasta ręcznie.\n\n/cancel — anuluj.",
         "scrape_searching": "Szukam ofert w {city}… ~30 sekund.",
+        "scrape_no_resume_hint": (
+            "Brak CV — wyszukiwanie z podstawowymi zapytaniami.\n"
+            "Wyślij plik .txt/.pdf/.docx aby uzyskać spersonalizowane wyniki."
+        ),
         "scrape_fallback_warning": (
-            "CV nie znalezione lub AI nie mógł go przetworzyć — "
-            "wyszukiwanie z podstawowymi zapytaniami.\n"
-            "Wgraj CV (.txt/.pdf/.docx) dla dokładniejszych wyników."
+            "AI nie mógł wygenerować zapytań — użyto podstawowych.\n"
+            "To tymczasowy błąd, Twoje CV jest zapisane."
         ),
         "scrape_done": "Gotowe. Znalezione: {found}, nowych w bazie: {saved}.",
         "scrape_cancelled": "Wyszukiwanie anulowane.",
@@ -319,6 +330,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "🤖 Job Bot — Lista komend\n\n"
             "📄 CV\n"
             "/resume — sprawdź aktualne CV\n"
+            "/feedback — analiza CV przez AI\n"
             "Wyślij plik — wgraj (.txt, .pdf, .docx)\n\n"
             "🔍 Wyszukiwanie\n"
             "/scrape — szukaj ofert (zapyta o miasto)\n"

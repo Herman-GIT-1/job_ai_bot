@@ -1,9 +1,9 @@
 import webbrowser
 from database import get_jobs_to_apply, mark_applied, CLI_CHAT_ID
 
-def open_jobs():
+def open_jobs(min_score: int = 7):
 
-    jobs = get_jobs_to_apply(CLI_CHAT_ID)
+    jobs = get_jobs_to_apply(CLI_CHAT_ID, min_score)
 
     for job in jobs:
 

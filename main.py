@@ -2,6 +2,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import argparse
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 from scraper import search_jobs
 from database import save_job, get_jobs, update_job, count_jobs, CLI_CHAT_ID
 from ai_score import evaluate

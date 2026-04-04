@@ -1,12 +1,16 @@
 import json
+import logging
 import os
 import time
 import requests
 from dotenv import load_dotenv
 from anthropic import Anthropic
+from config import MODEL_QUERY_BUILDER
 from resume_parser import load_resume
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 ADZUNA_APP_ID = os.environ.get("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.environ.get("ADZUNA_APP_KEY")
@@ -76,11 +80,18 @@ Return ONLY a valid JSON object. No explanation."""
 
     try:
         response = _claude.messages.create(
-            model="claude-sonnet-4-6",
+            model=MODEL_QUERY_BUILDER,
             max_tokens=300,
             messages=[{"role": "user", "content": prompt}]
         )
-        result = json.loads(response.content[0].text.strip())
+        raw = response.content[0].text.strip()
+        # Strip markdown code fences if Claude wrapped the JSON
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+        result = json.loads(raw)
         queries = result.get("queries", [])
         categories = result.get("remotive_categories", ["software-dev"])
         if isinstance(queries, list) and queries:
@@ -88,7 +99,7 @@ Return ONLY a valid JSON object. No explanation."""
             categories = [c for c in categories if c in REMOTIVE_CATEGORIES] or ["software-dev"]
             return queries, False, categories
     except Exception as e:
-        print(f"[Scraper] Не удалось сгенерировать запросы через AI: {e}")
+        logger.warning("Не удалось сгенерировать запросы через AI: %s", e)
 
     return ["junior developer", "intern IT", "junior python", "stażysta programista"], True, ["software-dev"]
 
@@ -107,12 +118,12 @@ def _extract_tech(text: str) -> str:
 
 def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
-        print("[Adzuna] Нет ADZUNA_APP_ID или ADZUNA_APP_KEY — источник пропущен.")
+        logger.info("Нет ADZUNA_APP_ID или ADZUNA_APP_KEY — источник пропущен.")
         return []
 
     jobs = []
     for query in queries:
-        print(f"  [Adzuna] Ищу: {query}")
+        logger.info("[Adzuna] Ищу: %s", query)
         params = {
             "app_id": ADZUNA_APP_ID,
             "app_key": ADZUNA_APP_KEY,
@@ -146,7 +157,7 @@ def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
                     "salary_currency": "GBP" if offer.get("salary_min") else None,
                 })
         except Exception as e:
-            print(f"  [Adzuna] Ошибка '{query}': {e}")
+            logger.error("[Adzuna] Ошибка '%s': %s", query, e)
         time.sleep(0.5)  # avoid hammering Adzuna between queries
 
     return jobs
@@ -163,7 +174,7 @@ def _city_to_nfj_slug(city: str) -> str:
 def _fetch_nofluffjobs(city: str) -> list[dict]:
     """NoFluffJobs — Polish IT jobs, no API key needed."""
     city_slug = _city_to_nfj_slug(city)
-    print(f"  [NoFluffJobs] Ищу junior/intern в {city} (slug: {city_slug})...")
+    logger.info("[NoFluffJobs] Ищу junior/intern в %s (slug: %s)...", city, city_slug)
 
     jobs = []
     page = 1
@@ -181,7 +192,7 @@ def _fetch_nofluffjobs(city: str) -> list[dict]:
             data = r.json()
             if page == 1:
                 total_pages = data.get("totalPages", 1)
-                print(f"  [NoFluffJobs] Всего: {data.get('totalCount', 0)} вакансий, {total_pages} стр.")
+                logger.info("[NoFluffJobs] Всего: %d вакансий, %d стр.", data.get("totalCount", 0), total_pages)
 
             for p in data.get("postings", []):
                 seniority = [s.lower() for s in (p.get("seniority") or [])]
@@ -191,7 +202,7 @@ def _fetch_nofluffjobs(city: str) -> list[dict]:
                 title = p.get("title", "")
                 places = (p.get("location") or {}).get("places") or []
                 url_slug = places[0].get("url", p.get("id", "")) if places else p.get("id", "")
-                link = f"https://nofluffjobs.com/pl/oferta-pracy/{url_slug}"
+                link = f"https://nofluffjobs.com/pl/job/{url_slug}"
 
                 tiles = (p.get("tiles") or {}).get("values") or []
                 tech = [t["value"] for t in tiles if t.get("type") == "requirement"]
@@ -216,11 +227,11 @@ def _fetch_nofluffjobs(city: str) -> list[dict]:
                     "salary_currency": salary.get("currency", "PLN") if salary.get("from") else None,
                 })
         except Exception as e:
-            print(f"  [NoFluffJobs] Ошибка стр. {page}: {e}")
+            logger.error("[NoFluffJobs] Ошибка стр. %d: %s", page, e)
             break
         page += 1
 
-    print(f"  [NoFluffJobs] Найдено подходящих: {len(jobs)}")
+    logger.info("[NoFluffJobs] Найдено подходящих: %d", len(jobs))
     return jobs
 
 
@@ -231,7 +242,7 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
     seen_links: set[str] = set()
 
     for category in categories:
-        print(f"  [Remotive] Ищу категорию: {category}...")
+        logger.info("[Remotive] Ищу категорию: %s...", category)
         try:
             r = requests.get(
                 REMOTIVE_URL,
@@ -241,7 +252,7 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
             r.raise_for_status()
             offers = r.json().get("jobs", [])
         except Exception as e:
-            print(f"  [Remotive] Ошибка категории '{category}': {e}")
+            logger.error("[Remotive] Ошибка категории '%s': %s", category, e)
             continue
 
         for offer in offers:
@@ -267,7 +278,7 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
                 "salary_currency": None,
             })
 
-    print(f"  [Remotive] Найдено подходящих: {len(jobs)}")
+    logger.info("[Remotive] Найдено подходящих: %d", len(jobs))
     return jobs
 
 
@@ -276,11 +287,11 @@ def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], boo
         resume_text = load_resume(chat_id)
     except FileNotFoundError:
         resume_text = ""
-        print("[Scraper] resume.txt не найдено — используются базовые запросы.")
+        logger.warning("resume.txt не найдено — используются базовые запросы.")
 
     queries, used_fallback, remotive_categories = build_queries(resume_text, city)
-    print(f"[Scraper] Запросов для Adzuna: {len(queries)}{' (fallback)' if used_fallback else ''}")
-    print(f"[Scraper] Категории Remotive: {remotive_categories}")
+    logger.info("Запросов для Adzuna: %d%s", len(queries), " (fallback)" if used_fallback else "")
+    logger.info("Категории Remotive: %s", remotive_categories)
 
     raw = []
     raw.extend(_fetch_adzuna(queries, city))
@@ -296,5 +307,5 @@ def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], boo
             seen.add(link)
             jobs.append(job)
 
-    print(f"\n[Scraper] Итого уникальных вакансий: {len(jobs)}")
+    logger.info("Итого уникальных вакансий: %d", len(jobs))
     return jobs, used_fallback

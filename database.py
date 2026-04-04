@@ -1,8 +1,11 @@
+import logging
 import os
 from contextlib import contextmanager
 
 import psycopg2
 from psycopg2.pool import ThreadedConnectionPool
+
+logger = logging.getLogger(__name__)
 
 # Sentinel chat_id used by CLI (main.py) in single-user mode.
 CLI_CHAT_ID = 0
@@ -71,6 +74,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary_currency TEXT",
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ",
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_status TEXT DEFAULT 'pending'",
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS resume_text TEXT",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS last_scrape_at TIMESTAMPTZ",
             ]:
@@ -180,7 +184,7 @@ def save_job(job: dict, chat_id: int) -> bool:
             conn.commit()
         return inserted
     except Exception as e:
-        print(f"[DB] save_job error: {e}")
+        logger.error("save_job error: %s", e)
         return False
 
 
@@ -302,6 +306,24 @@ def reset_scores(chat_id: int) -> None:
                 (chat_id,),
             )
         conn.commit()
+
+
+def delete_expired_jobs(days: int = 21) -> int:
+    """Delete pending jobs (applied=0) older than `days` days. Returns number of deleted rows."""
+    try:
+        with _get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM jobs WHERE applied = 0"
+                    " AND created_at < NOW() - INTERVAL '%s days'",
+                    (days,),
+                )
+                deleted = cur.rowcount
+            conn.commit()
+        return deleted
+    except Exception as e:
+        logger.error("delete_expired_jobs error: %s", e)
+        return 0
 
 
 def count_jobs(chat_id: int) -> int:

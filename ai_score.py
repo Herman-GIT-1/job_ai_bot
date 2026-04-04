@@ -1,10 +1,16 @@
+import logging
 import os
+import time
+
 from anthropic import Anthropic
 from dotenv import load_dotenv
+
+from config import MODEL_SCORING
 from resume_parser import load_resume
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 
@@ -42,20 +48,27 @@ Return ONLY a single integer 0–10. No explanation."""
         + (f"\n{desc_info}" if desc_info else "")
     )
 
-    try:
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=5,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": cached_prefix,
-                     "cache_control": {"type": "ephemeral"}},
-                    {"type": "text", "text": job_block},
-                ],
-            }],
-        )
-        return int(response.content[0].text.strip())
-    except Exception as e:
-        print(f"[Score error] {e}")
-        return 5
+    last_err = None
+    for attempt in range(3):
+        try:
+            response = client.messages.create(
+                model=MODEL_SCORING,
+                max_tokens=5,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": cached_prefix,
+                         "cache_control": {"type": "ephemeral"}},
+                        {"type": "text", "text": job_block},
+                    ],
+                }],
+            )
+            return int(response.content[0].text.strip())
+        except Exception as e:
+            last_err = e
+            if attempt < 2:
+                logger.warning("Score attempt %d failed: %s — retrying in 2s", attempt + 1, e)
+                time.sleep(2)
+
+    logger.error("Score error after 3 attempts: %s", last_err)
+    return 5   # neutral default — never crash the pipeline
