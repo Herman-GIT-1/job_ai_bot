@@ -18,7 +18,13 @@
       "Bash(python -c ':*)",
       "Bash(python main.py)",
       "Bash(python -c 'import ast:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(git stash:*)",
+      "Bash(git push:*)",
+      "Bash(dir \"C:\\\\Users\\\\job_ai_bot\")",
+      "Bash(/c/Users/User/PostgreSQL/18/bin/psql -U job_bot_user -h localhost -p 5432 -d job_bot -c ':*)",
+      "Bash(python -c \"from dotenv import load_dotenv; load_dotenv\\(\\); import bot; print\\('OK'\\)\")"
     ],
     "deny": [
       "Bash(git push)"
