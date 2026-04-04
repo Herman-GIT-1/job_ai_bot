@@ -15,7 +15,7 @@ def generate_letter(job, resume=None):
     tech_stack = job.get("tech_stack", "")
     tech_info = f"Required tech stack: {tech_stack}" if tech_stack else ""
     description = job.get("description", "")
-    desc_info = f"Job description:\n{description[:2000]}" if description else ""
+    desc_info = f"Job description:\n{description[:600]}" if description else ""
 
     # Cached block: static instructions + resume.
     cached_prefix = f"""Write a short cover letter (100-120 words) for this candidate.
