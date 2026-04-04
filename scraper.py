@@ -131,7 +131,7 @@ def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
                 link = offer.get("redirect_url", "")
                 if not link:
                     continue
-                description = (offer.get("description") or "")[:1500]
+                description = offer.get("description") or ""
                 jobs.append({
                     "title": title,
                     "company": (offer.get("company") or {}).get("display_name", "Unknown"),
@@ -140,7 +140,10 @@ def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
                     "remote": "remote" in description.lower() or "zdaln" in description.lower(),
                     "city": (offer.get("location") or {}).get("display_name", city),
                     "description": description,
-                    "_source": "Adzuna",
+                    "source": "Adzuna",
+                    "salary_min": offer.get("salary_min"),
+                    "salary_max": offer.get("salary_max"),
+                    "salary_currency": "GBP" if offer.get("salary_min") else None,
                 })
         except Exception as e:
             print(f"  [Adzuna] Ошибка '{query}': {e}")
@@ -198,6 +201,7 @@ def _fetch_nofluffjobs(city: str) -> list[dict]:
                 offer_city = places[0].get("city", city) if places else city
                 remote = (p.get("location") or {}).get("fullyRemote", False)
 
+                salary = p.get("salary") or {}
                 jobs.append({
                     "title": title,
                     "company": p.get("name", "Unknown"),
@@ -206,7 +210,10 @@ def _fetch_nofluffjobs(city: str) -> list[dict]:
                     "remote": remote,
                     "city": offer_city,
                     "description": description,
-                    "_source": "NoFluffJobs",
+                    "source": "NoFluffJobs",
+                    "salary_min": salary.get("from"),
+                    "salary_max": salary.get("to"),
+                    "salary_currency": salary.get("currency", "PLN") if salary.get("from") else None,
                 })
         except Exception as e:
             print(f"  [NoFluffJobs] Ошибка стр. {page}: {e}")
@@ -245,7 +252,7 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
             if not link or link in seen_links:
                 continue
             seen_links.add(link)
-            description = (offer.get("description") or "")[:1500]
+            description = offer.get("description") or ""
             jobs.append({
                 "title": title,
                 "company": offer.get("company_name", "Unknown"),
@@ -254,7 +261,10 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
                 "remote": True,
                 "city": "Remote",
                 "description": description,
-                "_source": "Remotive",
+                "source": "Remotive",
+                "salary_min": None,
+                "salary_max": None,
+                "salary_currency": None,
             })
 
     print(f"  [Remotive] Найдено подходящих: {len(jobs)}")
@@ -284,7 +294,6 @@ def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], boo
         link = job["link"]
         if link and link not in seen:
             seen.add(link)
-            job.pop("_source", None)
             jobs.append(job)
 
     print(f"\n[Scraper] Итого уникальных вакансий: {len(jobs)}")

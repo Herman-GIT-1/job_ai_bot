@@ -9,14 +9,16 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
                           MessageHandler, ConversationHandler, filters, ContextTypes)
 
-from database import (get_jobs_to_apply, get_job_link, get_cover_letter, mark_applied,
-                      get_stats, get_jobs, update_job, count_jobs, reset_scores,
+from database import (get_jobs_to_apply, count_jobs_to_apply, get_job_link,
+                      get_cover_letter, mark_applied, update_job_status,
+                      get_stats, get_jobs, update_job, reset_scores,
                       save_job, get_user_lang, set_user_lang,
-                      get_last_scrape, set_last_scrape)
+                      get_last_scrape, set_last_scrape, get_applied_jobs)
 from scraper import search_jobs
 from resume_parser import parse_resume, save_resume, load_resume, validate
 from ai_score import evaluate
 from cover_letter import generate_letter
+from resume_feedback import analyze_resume
 from strings import t
 
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
@@ -88,15 +90,24 @@ async def _run_score(msg, chat_id: int, lang_code: str) -> None:
     async def score_one(job_id, job):
         nonlocal done
         async with sem:
-            score = await loop.run_in_executor(
-                None, lambda j=job, r=resume: evaluate(j, resume=r)
-            )
-            letter = (
-                await loop.run_in_executor(
-                    None, lambda j=job, r=resume: generate_letter(j, resume=r)
+            try:
+                score = await asyncio.wait_for(
+                    loop.run_in_executor(None, lambda j=job, r=resume: evaluate(j, resume=r)),
+                    timeout=30.0,
                 )
-                if score >= 7 else ""
-            )
+            except asyncio.TimeoutError:
+                score = 5
+            letter = ""
+            if score >= 7:
+                try:
+                    letter = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None, lambda j=job, r=resume: generate_letter(j, resume=r)
+                        ),
+                        timeout=60.0,
+                    )
+                except asyncio.TimeoutError:
+                    letter = "Cover letter generation timed out."
             update_job(job_id, chat_id, score, letter)
         done += 1
         if done % 5 == 0 or done == total:
@@ -122,21 +133,36 @@ async def _run_score(msg, chat_id: int, lang_code: str) -> None:
     await status_msg.edit_text(summary, reply_markup=keyboard)
 
 
-async def _send_jobs(msg, chat_id: int, min_score: int, lang_code: str) -> None:
-    """Send job cards with Apply/Skip/Letter buttons."""
-    vacancies = get_jobs_to_apply(chat_id, min_score)
+JOBS_PAGE_SIZE = 5
+
+
+async def _send_jobs(msg, chat_id: int, min_score: int, lang_code: str,
+                     offset: int = 0) -> None:
+    """Send paginated job cards with Apply/Skip/Letter buttons."""
+    vacancies = get_jobs_to_apply(chat_id, min_score, limit=JOBS_PAGE_SIZE, offset=offset)
     if not vacancies:
-        await msg.reply_text(t(lang_code, "jobs_none", min_score=min_score))
+        if offset == 0:
+            await msg.reply_text(t(lang_code, "jobs_none", min_score=min_score))
         return
 
-    await msg.reply_text(t(lang_code, "jobs_found", min_score=min_score, count=len(vacancies)))
+    total = count_jobs_to_apply(chat_id, min_score)
+    if offset == 0:
+        await msg.reply_text(t(lang_code, "jobs_found", min_score=min_score, count=total))
 
-    for job_id, title, company, _link, score, description, _cover_letter in vacancies:
+    for row in vacancies:
+        job_id, title, company, _link, score, description, _cover_letter = row[:7]
+        salary_min, salary_max, salary_currency = row[7], row[8], row[9]
         desc = (description or "").strip()
         preview = desc[:280] + "…" if len(desc) > 280 else desc
+
+        salary_line = ""
+        if salary_min:
+            cur = salary_currency or "PLN"
+            salary_line = f"\n💰 {salary_min:,}–{salary_max:,} {cur}" if salary_max else f"\n💰 from {salary_min:,} {cur}"
+
         text = (
             f"<b>{title}</b>\n"
-            f"🏢 {company}  •  ⭐ {score}/10\n\n"
+            f"🏢 {company}  •  ⭐ {score}/10{salary_line}\n\n"
             f"{preview}"
         )
         keyboard = InlineKeyboardMarkup([[
@@ -145,6 +171,19 @@ async def _send_jobs(msg, chat_id: int, min_score: int, lang_code: str) -> None:
             InlineKeyboardButton(t(lang_code, "btn_letter"), callback_data=f"letter:{job_id}"),
         ]])
         await msg.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
+
+    shown = offset + len(vacancies)
+    if shown < total:
+        more_keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton(
+                t(lang_code, "jobs_show_more", remaining=total - shown),
+                callback_data=f"jobs_page:{shown}:{min_score}",
+            )
+        ]])
+        await msg.reply_text(
+            t(lang_code, "jobs_page_info", shown=shown, total=total),
+            reply_markup=more_keyboard,
+        )
 
 
 SCRAPE_COOLDOWN_MINUTES = 60
@@ -171,12 +210,7 @@ async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
     if used_fallback:
         await msg.reply_text(t(lang_code, "scrape_fallback_warning"))
 
-    saved = 0
-    for job in jobs:
-        before = count_jobs(chat_id)
-        save_job(job, chat_id)
-        if count_jobs(chat_id) > before:
-            saved += 1
+    saved = sum(1 for job in jobs if save_job(job, chat_id))
 
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton(t(lang_code, "btn_score_now"), callback_data="action:score"),
@@ -288,6 +322,9 @@ async def cmd_resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         validate(text)
         save_resume(text, chat_id)
         await update.message.reply_text(t(lang_code, "resume_saved", chars=len(text)))
+        await update.message.reply_text(
+            t(lang_code, "onboard_ask_city"), reply_markup=_city_keyboard()
+        )
     except (ValueError, ImportError) as e:
         await update.message.reply_text(t(lang_code, "resume_error", error=e))
     except Exception as e:
@@ -314,6 +351,67 @@ async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_help(update: Update, _context: ContextTypes.DEFAULT_TYPE):
     lang_code = _lang(update)
     await update.message.reply_text(t(lang_code, "help_text"))
+
+
+async def cmd_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    lang_code = _lang(update)
+    try:
+        resume = load_resume(chat_id)
+    except FileNotFoundError:
+        await update.message.reply_text(t(lang_code, "resume_not_found"))
+        return
+    msg = await update.message.reply_text(t(lang_code, "feedback_generating"))
+    loop = asyncio.get_running_loop()
+    try:
+        feedback = await asyncio.wait_for(
+            loop.run_in_executor(None, lambda: analyze_resume(resume)),
+            timeout=60.0,
+        )
+    except asyncio.TimeoutError:
+        feedback = "Feedback generation timed out."
+    await msg.edit_text(t(lang_code, "feedback_header") + "\n\n" + feedback)
+
+
+async def cmd_tracker(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    lang_code = _lang(update)
+    rows = get_applied_jobs(chat_id)
+    if not rows:
+        await update.message.reply_text(t(lang_code, "tracker_empty"))
+        return
+
+    now = datetime.datetime.now(datetime.timezone.utc)
+    groups = {"today": [], "week": [], "older": []}
+    for row in rows:
+        job_id, title, company, link, score, job_status, applied_at = row
+        if applied_at is None:
+            age_days = 0
+        else:
+            age_days = (now - applied_at).days
+        entry = (job_id, title, company, link, score, job_status or "applied", age_days)
+        if age_days == 0:
+            groups["today"].append(entry)
+        elif age_days <= 7:
+            groups["week"].append(entry)
+        else:
+            groups["older"].append(entry)
+
+    lines = []
+    for group_key, label_key in (("today", "tracker_today"), ("week", "tracker_week"), ("older", "tracker_older")):
+        items = groups[group_key]
+        if not items:
+            continue
+        lines.append(f"\n<b>{t(lang_code, label_key)}</b>")
+        for job_id, title, company, link, score, job_status, age_days in items:
+            status_emoji = {"applied": "📤", "interviewing": "🤝", "rejected": "❌", "offer": "🎉"}.get(job_status, "📤")
+            follow_up = f" ⚠️ {t(lang_code, 'tracker_followup')}" if age_days >= 14 and job_status == "applied" else ""
+            lines.append(f'{status_emoji} <a href="{link}">{title}</a> @ {company}{follow_up}')
+
+    await update.message.reply_text(
+        t(lang_code, "tracker_header", count=len(rows)) + "\n".join(lines),
+        parse_mode="HTML", disable_web_page_preview=True,
+    )
 
 
 @admin_only
@@ -362,6 +460,14 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _run_scrape(city, query.message, chat_id, lang_code)
         return
 
+    # --- pagination ---
+    if data.startswith("jobs_page:"):
+        parts = data.split(":")
+        offset, min_score = int(parts[1]), int(parts[2])
+        await query.edit_message_reply_markup(reply_markup=None)
+        await _send_jobs(query.message, chat_id, min_score, lang_code, offset=offset)
+        return
+
     # --- quick actions from stats / score done buttons ---
     if data.startswith("action:"):
         action = data.split(":", 1)[1]
@@ -377,6 +483,15 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text(t(lang_code, "help_text"))
         return
 
+    # --- tracker status updates ---
+    if data.startswith("status:"):
+        parts = data.split(":")
+        job_status, job_id = parts[1], int(parts[2])
+        update_job_status(job_id, chat_id, job_status)
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.answer(t(lang_code, f"status_{job_status}"), show_alert=False)
+        return
+
     # --- job card actions: apply / skip / letter ---
     parts = data.split(":", 1)
     if len(parts) != 2:
@@ -390,14 +505,26 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer(t(lang_code, "letter_not_found"), show_alert=True)
             return
         title, company, letter = row
-        filename = f"cover_letter_{company}_{title}.txt".replace(" ", "_").replace("/", "-")
-        await query.message.reply_document(document=letter.encode("utf-8"), filename=filename)
+        safe_title = title.replace("<", "&lt;").replace(">", "&gt;")
+        safe_company = company.replace("<", "&lt;").replace(">", "&gt;")
+        await query.message.reply_text(
+            f"<b>{safe_company} — {safe_title}</b>\n\n<pre>{letter}</pre>",
+            parse_mode="HTML",
+        )
 
     elif action == "apply":
         link = get_job_link(job_id, chat_id)
         mark_applied(job_id, chat_id, status=1)
         await query.edit_message_reply_markup(reply_markup=None)
-        await query.message.reply_text(t(lang_code, "applied_msg", link=link))
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton(t(lang_code, "btn_open_job"), url=link),
+        ], [
+            InlineKeyboardButton(t(lang_code, "btn_interviewing"), callback_data=f"status:interviewing:{job_id}"),
+            InlineKeyboardButton(t(lang_code, "btn_rejected"),     callback_data=f"status:rejected:{job_id}"),
+        ]])
+        await query.message.reply_text(
+            t(lang_code, "applied_msg"), reply_markup=keyboard
+        )
 
     elif action == "skip":
         mark_applied(job_id, chat_id, status=2)
@@ -432,6 +559,8 @@ async def _set_commands(app: Application) -> None:
         ("score",    "Score jobs with AI"),
         ("rescore",  "Reset scores and re-score"),
         ("jobs",     "Show top jobs (optional min score)"),
+        ("tracker",  "Track your applications"),
+        ("feedback", "Get AI feedback on your resume"),
         ("resume",   "View current resume"),
         ("stats",    "Statistics"),
         ("help",     "Command reference"),
@@ -460,6 +589,8 @@ def main():
     app.add_handler(CommandHandler("score",    cmd_score))
     app.add_handler(CommandHandler("rescore",  cmd_rescore))
     app.add_handler(CommandHandler("jobs",     cmd_jobs))
+    app.add_handler(CommandHandler("tracker",  cmd_tracker))
+    app.add_handler(CommandHandler("feedback", cmd_feedback))
     app.add_handler(CommandHandler("stats",    cmd_stats))
     app.add_handler(CommandHandler("stop",     cmd_stop))
     app.add_handler(scrape_conv)

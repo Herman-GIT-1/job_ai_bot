@@ -24,6 +24,9 @@ def _get_conn():
     conn = _pool.getconn()
     try:
         yield conn
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         _pool.putconn(conn)
 
@@ -62,6 +65,12 @@ CREATE TABLE IF NOT EXISTS user_settings (
             for ddl in [
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS chat_id BIGINT",
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS description TEXT DEFAULT ''",
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source TEXT",
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary_min INTEGER",
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary_max INTEGER",
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS salary_currency TEXT",
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS applied_at TIMESTAMPTZ",
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_status TEXT DEFAULT 'pending'",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS resume_text TEXT",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS last_scrape_at TIMESTAMPTZ",
             ]:
@@ -141,14 +150,16 @@ def set_resume(chat_id: int, text: str) -> None:
 
 # ── Job operations (all scoped to chat_id) ────────────────────────────────────
 
-def save_job(job: dict, chat_id: int) -> None:
+def save_job(job: dict, chat_id: int) -> bool:
+    """Insert job; returns True if a new row was created, False on duplicate or error."""
     try:
         with _get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
                     "INSERT INTO jobs"
-                    " (chat_id, title, company, link, tech_stack, remote, city, description)"
-                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+                    " (chat_id, title, company, link, tech_stack, remote, city, description,"
+                    "  source, salary_min, salary_max, salary_currency)"
+                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
                     " ON CONFLICT (link, chat_id) DO NOTHING",
                     (
                         chat_id,
@@ -159,11 +170,18 @@ def save_job(job: dict, chat_id: int) -> None:
                         int(job.get("remote", False)),
                         job.get("city", ""),
                         job.get("description", ""),
+                        job.get("source"),
+                        job.get("salary_min"),
+                        job.get("salary_max"),
+                        job.get("salary_currency"),
                     ),
                 )
+                inserted = cur.rowcount > 0
             conn.commit()
+        return inserted
     except Exception as e:
         print(f"[DB] save_job error: {e}")
+        return False
 
 
 def get_jobs(chat_id: int) -> list:
@@ -177,26 +195,68 @@ def get_jobs(chat_id: int) -> list:
             return cur.fetchall()
 
 
-def get_jobs_to_apply(chat_id: int, min_score: int = 7) -> list:
+def get_jobs_to_apply(
+    chat_id: int, min_score: int = 7, limit: int = 5, offset: int = 0
+) -> list:
     with _get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, title, company, link, score, description, cover_letter"
-                " FROM jobs WHERE chat_id = %s AND applied = 0 AND score >= %s",
-                (chat_id, min_score),
+                "SELECT id, title, company, link, score, description, cover_letter,"
+                "       salary_min, salary_max, salary_currency"
+                " FROM jobs WHERE chat_id = %s AND applied = 0 AND score >= %s"
+                " ORDER BY score DESC"
+                " LIMIT %s OFFSET %s",
+                (chat_id, min_score, limit, offset),
             )
             return cur.fetchall()
+
+
+def count_jobs_to_apply(chat_id: int, min_score: int = 7) -> int:
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM jobs"
+                " WHERE chat_id = %s AND applied = 0 AND score >= %s",
+                (chat_id, min_score),
+            )
+            return cur.fetchone()[0]
 
 
 def mark_applied(job_id: int, chat_id: int, status: int = 1) -> None:
     """status: 1 = applied, 2 = skipped"""
     with _get_conn() as conn:
         with conn.cursor() as cur:
+            applied_at_sql = ", applied_at = NOW()" if status == 1 else ""
             cur.execute(
-                "UPDATE jobs SET applied = %s WHERE id = %s AND chat_id = %s",
-                (status, job_id, chat_id),
+                f"UPDATE jobs SET applied = %s, job_status = %s{applied_at_sql}"
+                " WHERE id = %s AND chat_id = %s",
+                (status, "applied" if status == 1 else "skipped", job_id, chat_id),
             )
         conn.commit()
+
+
+def update_job_status(job_id: int, chat_id: int, job_status: str) -> None:
+    """Update tracker status: 'interviewing', 'rejected', 'offer'."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE jobs SET job_status = %s WHERE id = %s AND chat_id = %s",
+                (job_status, job_id, chat_id),
+            )
+        conn.commit()
+
+
+def get_applied_jobs(chat_id: int) -> list:
+    """Return applied jobs ordered by applied_at for /tracker."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, title, company, link, score, job_status, applied_at"
+                " FROM jobs WHERE chat_id = %s AND applied = 1"
+                " ORDER BY applied_at DESC NULLS LAST",
+                (chat_id,),
+            )
+            return cur.fetchall()
 
 
 def update_job(job_id: int, chat_id: int, score: int, letter: str) -> None:
