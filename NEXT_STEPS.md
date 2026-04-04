@@ -1,37 +1,14 @@
 # NEXT_STEPS.md
 
-Current state: PostgreSQL · multi-user schema · Claude API · Telegram EN/RU/PL · ready for Railway.
+Current state: PostgreSQL · multi-user schema · Claude API · Telegram EN/RU/PL · Railway deployed · any-student jobs · application tracker · resume feedback.
 
 ---
 
-## Priority 1 — Deploy to Railway ← user has to say when it's have to be done
+## Priority 1 — Открытая регистрация
 
-1. Push `main` to GitHub
-2. Railway.app → "Deploy from GitHub repo"
-3. Add PostgreSQL plugin — Railway injects `DATABASE_URL` automatically
-4. Set env vars in Railway dashboard: `ANTHROPIC_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`
-5. Add `Procfile` to repo root:
-   ```
-   worker: python main.py --bot
-   ```
-6. Deploy → bot runs 24/7
+Сейчас бот доступен только владельцу (`owner_only` на всех командах кроме `/stop`).
 
-**Cost:** Railway free tier covers this. PostgreSQL plugin free up to 1 GB.
-
-**After deploy — add monitoring (15 min):**
-- Sign up at UptimeRobot (free)
-- Add a "TCP port" monitor for your Railway app
-- Set alert to your email — you'll know when the bot crashes at 3am
-
----
-
-## Priority 2 — Open to first external users
-
-**Trigger:** after deploy is stable.
-
-### 2.1 Replace owner_only with whitelist
-
-File: `bot.py`
+**Файл:** `bot.py`
 
 ```python
 ALLOWED = set(int(x) for x in os.getenv("ALLOWED_CHAT_IDS", "").split(",") if x)
@@ -46,69 +23,32 @@ def allowed(func):
     return wrapper
 ```
 
-Add `ALLOWED_CHAT_IDS=id1,id2,id3` to `.env` and Railway dashboard.
-
-### 2.2 Guided onboarding for new users
-
-File: `bot.py` — `ConversationHandler`
-
-```
-/start
-  → "Choose language" [EN] [RU] [PL]
-  → "Send your resume (.txt / .pdf / .docx)"
-  → <file uploaded>
-  → "Which city?" [city buttons]
-  → auto-runs /scrape + /score in background
-  → sends first job cards
-```
-
-### 2.3 Rate limiting per user
-
-Add `last_scrape_at TIMESTAMP` to `user_settings`.
-Before running scrape: if `now - last_scrape_at < 1h`, reply "Come back in X minutes."
+Добавить `ALLOWED_CHAT_IDS=id1,id2,id3` в `.env` и Railway dashboard.
+Когда готов к полному открытию — убрать декоратор совсем.
 
 ---
 
-## Priority 3 — UX improvements
+## Priority 2 — UX: score explanation (объяснение скора)
 
-### 3.1 High-score alert after scoring
+Сейчас бот показывает `⭐ 6/10` без объяснений — студент не понимает что улучшить.
 
-File: `bot.py` — `_run_score()`
+**Ограничение:** пока отложено чтобы не увеличивать расход токенов Haiku.
 
-String `score_high_alert` already in `strings.py`. Wire it in:
+Когда будет готов к production:
 
-```python
-high = len(get_jobs_to_apply(chat_id, min_score=8))
-if high:
-    await msg.reply_text(t(lang, "score_high_alert", high=high))
-```
+- `ai_score.py`: изменить `max_tokens=5` → `max_tokens=80`, промт возвращает JSON `{"score": 7, "reason": "..."}`
+- `database.py`: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS score_reason TEXT`
+- `database.py`: обновить `update_job()` для сохранения reason
+- `bot.py`: показывать в карточке под скором
 
-### 3.2 Export to CSV
+---
 
-New `/export` command — sends all jobs as `.csv` file.
+## Priority 3 — Scheduled auto-scrape
 
-```python
-import csv, io
+JobQueue внутри бота — запускать скрейп+скоринг раз в день и присылать дайджест.
 
-async def cmd_export(update, context):
-    chat_id = update.effective_chat.id
-    rows = get_all_jobs(chat_id)
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(["title", "company", "link", "score", "applied", "city", "tech_stack"])
-    writer.writerows(rows)
-    await update.message.reply_document(
-        document=buf.getvalue().encode("utf-8"),
-        filename="jobs_export.csv"
-    )
-```
-
-### 3.3 Scheduled auto-scrape
-
-**Warning:** APScheduler won't work reliably on Railway free tier (worker sleeps).
-Use Railway Cron Jobs instead — create a separate cron job that hits an endpoint.
-
-Alternative: `python-telegram-bot` `JobQueue` — runs inside the bot process, survives as long as the worker is alive.
+**Предупреждение:** APScheduler не работает надёжно на Railway free tier.
+Использовать `python-telegram-bot` `JobQueue`:
 
 ```python
 application.job_queue.run_daily(
@@ -117,53 +57,60 @@ application.job_queue.run_daily(
 )
 ```
 
-### 3.4 /jobs pagination
-
-When >10 jobs with score ≥ 7 exist, Telegram floods the chat.
-Add "Show more →" inline button with offset in callback data: `jobs_page:5`.
+Функция `daily_scrape` должна перебирать всех пользователей у которых есть резюме и `last_scrape_at` старше 24h.
 
 ---
 
 ## Priority 4 — Database backup
 
-Railway free PostgreSQL has no automatic backups.
-
-Quick solution: daily `pg_dump` via Railway cron → upload to Telegram (send to yourself as a file).
+Railway free PostgreSQL не делает автоматических бэкапов.
 
 ```python
 import subprocess
 result = subprocess.run(["pg_dump", DATABASE_URL], capture_output=True)
-await bot.send_document(chat_id=OWNER_ID, document=result.stdout, filename="backup.sql")
+await bot.send_document(chat_id=ADMIN_CHAT_ID, document=result.stdout, filename="backup.sql")
 ```
 
-Add this as a daily cron job on Railway (separate from the bot worker).
+Добавить как Railway cron job (отдельно от bot worker).
 
 ---
 
-## Priority 5 — Web dashboard (Stage 3)
+## Priority 5 — Монетизация
 
-**Trigger:** after stable multi-user flow on Railway.
+Когда будет стабильная пользовательская база:
 
-- FastAPI backend — `/api/jobs`, `/api/stats`, `/api/resume`
-- Simple HTML frontend — job list with score bars, apply/skip, resume upload
-- Auth — Telegram Login Widget
-- Stripe — free tier (20 scrapes/month) + paid (unlimited)
-
-DB schema already ready — every table has `chat_id`.
+- **Telegram Payments + Stripe** — пользователь платит прямо в Telegram, без веб-сайта
+- Настроить в BotFather → Payments → Stripe (занимает ~15 мин)
+- Новая переменная: `STRIPE_PROVIDER_TOKEN`
+- Новые колонки в `user_settings`: `plan TEXT DEFAULT 'free'`, `scrapes_this_month INT DEFAULT 0`, `plan_expires_at TIMESTAMPTZ`
+- Freemium: 5 скрейпов/месяц бесплатно → unlimited за ~€4.99/мес
+- `/upgrade` команда → `send_invoice()` → `successful_payment` handler → `set_user_plan()`
 
 ---
 
 ## Done ✓
 
-- Multi-user schema with chat_id everywhere
-- PostgreSQL + ThreadedConnectionPool
-- Prompt caching on resume block (ai_score + cover_letter)
-- Three job sources: Adzuna + NoFluffJobs + Remotive
-- Telegram bot with EN/RU/PL
-- Resume stored in DB (not as file)
-- /rescore command
-- Configurable score threshold /jobs 6
-- Job description passed to AI prompts
-- Inline city quick-pick buttons
-- owner_only guard
-- Guided onboarding in /start
+- Multi-user schema с chat_id везде
+- PostgreSQL + ThreadedConnectionPool (с rollback на ошибку)
+- Prompt caching на resume block (ai_score + cover_letter)
+- Три источника вакансий: Adzuna + NoFluffJobs + Remotive
+- Telegram bot EN/RU/PL
+- Резюме хранится в БД (не файлом)
+- Поиск для любых студентов (не только IT) — динамические запросы и категории Remotive
+- Расширенный JUNIOR_KEYWORDS + фильтр нерелевантных вакансий
+- /rescore команда
+- Настраиваемый порог /jobs 6
+- Описание вакансии передаётся AI-промтам (полное, без [:1500] cap)
+- Source вакансии сохраняется в БД (Adzuna / NoFluffJobs / Remotive)
+- Salary данные из Adzuna и NoFluffJobs (salary_min / salary_max / salary_currency)
+- Пагинация /jobs (5 вакансий + кнопка "Показать ещё")
+- Зарплата отображается в карточке вакансии
+- Сопроводительное письмо отправляется текстом (не файлом)
+- Таймауты executor: 30s для скоринга, 60s для письма
+- /tracker — трекер заявок с группировкой по дате и статусами
+- /feedback — AI-анализ резюме (Sonnet): пропущенные навыки, слабые секции, rewrite suggestion
+- После загрузки резюме автоматически предлагается выбор города
+- save_job возвращает bool (без двойного count_jobs)
+- Cooldown 60 мин между /scrape (кроме admin)
+- Inline city quick-pick кнопки
+- owner_only guard на /stop
