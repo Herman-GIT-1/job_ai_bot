@@ -6,13 +6,14 @@ import datetime
 import functools
 import logging
 import os
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (Update, InlineKeyboardButton, InlineKeyboardMarkup,
+                       KeyboardButton, ReplyKeyboardMarkup, WebAppInfo)
 from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
                           MessageHandler, ConversationHandler, filters, ContextTypes)
 
 from config import (CITIES, SCRAPE_COOLDOWN_MINUTES, JOBS_PAGE_SIZE,
                     DEFAULT_MIN_SCORE, HIGH_SCORE_ALERT, LETTER_MIN_SCORE,
-                    JOB_EXPIRY_DAYS)
+                    JOB_EXPIRY_DAYS, WEBAPP_URL)
 from database import (get_jobs_to_apply, count_jobs_to_apply, get_job_link,
                       get_cover_letter, mark_applied, update_job_status,
                       get_stats, get_jobs, update_job, reset_scores,
@@ -284,12 +285,19 @@ async def cmd_scrape_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     lang_code = _lang(update)
-    try:
-        min_score = int(context.args[0]) if context.args else DEFAULT_MIN_SCORE
-        min_score = max(0, min(10, min_score))
-    except (ValueError, IndexError):
-        min_score = DEFAULT_MIN_SCORE
-    await _send_jobs(update.message, chat_id, min_score, lang_code)
+    if WEBAPP_URL:
+        keyboard = ReplyKeyboardMarkup(
+            [[KeyboardButton(t(lang_code, "webapp_btn"), web_app=WebAppInfo(url=WEBAPP_URL))]],
+            resize_keyboard=True,
+        )
+        await update.message.reply_text(t(lang_code, "webapp_open"), reply_markup=keyboard)
+    else:
+        try:
+            min_score = int(context.args[0]) if context.args else DEFAULT_MIN_SCORE
+            min_score = max(0, min(10, min_score))
+        except (ValueError, IndexError):
+            min_score = DEFAULT_MIN_SCORE
+        await _send_jobs(update.message, chat_id, min_score, lang_code)
 
 
 async def cmd_resume_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
