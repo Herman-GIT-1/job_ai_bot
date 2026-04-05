@@ -31,3 +31,8 @@ RESUME_MIN_LENGTH = 100    # characters; shorter than this is rejected as invali
 # ── Database ───────────────────────────────────────────────────────────────────
 
 JOB_EXPIRY_DAYS = 21       # pending jobs older than this are deleted by daily cleanup
+
+# ── Telegram Mini App ──────────────────────────────────────────────────────────
+
+import os as _os
+WEBAPP_URL = _os.environ.get("WEBAPP_URL", "")  # e.g. https://your-service.railway.app

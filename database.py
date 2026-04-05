@@ -239,6 +239,34 @@ def mark_applied(job_id: int, chat_id: int, status: int = 1) -> None:
         conn.commit()
 
 
+def mark_interested(job_id: int, chat_id: int) -> None:
+    """Mark job as saved/interested (applied=3)."""
+    try:
+        with _get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE jobs SET applied = 3, job_status = 'interested'"
+                    " WHERE id = %s AND chat_id = %s",
+                    (job_id, chat_id),
+                )
+            conn.commit()
+    except Exception as e:
+        logger.error("mark_interested error: %s", e)
+
+
+def get_interested_jobs(chat_id: int) -> list:
+    """Return saved/interested jobs (applied=3) ordered by score."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, title, company, link, score, cover_letter"
+                " FROM jobs WHERE chat_id = %s AND applied = 3"
+                " ORDER BY score DESC",
+                (chat_id,),
+            )
+            return cur.fetchall()
+
+
 def update_job_status(job_id: int, chat_id: int, job_status: str) -> None:
     """Update tracker status: 'interviewing', 'rejected', 'offer'."""
     with _get_conn() as conn:
@@ -343,9 +371,10 @@ def get_stats(chat_id: int) -> dict:
                 return cur.fetchone()[0]
 
             return {
-                "total":     q("SELECT COUNT(*) FROM jobs WHERE chat_id = %s", chat_id),
-                "scored":    q("SELECT COUNT(*) FROM jobs WHERE chat_id = %s AND score IS NOT NULL", chat_id),
-                "avg_score": q("SELECT AVG(score) FROM jobs WHERE chat_id = %s AND score IS NOT NULL", chat_id),
-                "applied":   q("SELECT COUNT(*) FROM jobs WHERE chat_id = %s AND applied = 1", chat_id),
-                "skipped":   q("SELECT COUNT(*) FROM jobs WHERE chat_id = %s AND applied = 2", chat_id),
+                "total":      q("SELECT COUNT(*) FROM jobs WHERE chat_id = %s", chat_id),
+                "scored":     q("SELECT COUNT(*) FROM jobs WHERE chat_id = %s AND score IS NOT NULL", chat_id),
+                "avg_score":  q("SELECT AVG(score) FROM jobs WHERE chat_id = %s AND score IS NOT NULL", chat_id),
+                "applied":    q("SELECT COUNT(*) FROM jobs WHERE chat_id = %s AND applied = 1", chat_id),
+                "skipped":    q("SELECT COUNT(*) FROM jobs WHERE chat_id = %s AND applied = 2", chat_id),
+                "interested": q("SELECT COUNT(*) FROM jobs WHERE chat_id = %s AND applied = 3", chat_id),
             }
