@@ -3,6 +3,7 @@ load_dotenv()
 
 import argparse
 import logging
+import os
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,6 +62,18 @@ def run_apply(min_score: int = 7) -> None:
 
 
 def run_bot() -> None:
+    import threading
+    import uvicorn
+    from webapp import app as web_app
+
+    port = int(os.environ.get("PORT", 8000))
+    t = threading.Thread(
+        target=lambda: uvicorn.run(web_app, host="0.0.0.0", port=port, log_level="warning"),
+        daemon=True,
+    )
+    t.start()
+    logging.getLogger(__name__).info("Mini App server started on port %d", port)
+
     import bot
     bot.main()
 
