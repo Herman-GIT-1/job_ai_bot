@@ -1,6 +1,6 @@
 # NEXT_STEPS.md
 
-Current state (Apr 2026): PostgreSQL · multi-user · Claude API · Telegram EN/RU/PL · Railway · 3 job sources (Adzuna/NoFluffJobs/Remotive) · application tracker · resume feedback · salary data · pagination · cooldown.
+Current state (Apr 2026): PostgreSQL · multi-user · Claude API · Telegram EN/RU/PL · Railway · 3 job sources (Adzuna/NoFluffJobs/Remotive) · application tracker · resume feedback · salary data · pagination · cooldown · Telegram Mini App swipe UI.
 
 ---
 
@@ -152,12 +152,16 @@ Railway free PostgreSQL не делает автобэкапов.
 
 ---
 
-### P12 · Web dashboard (минимальный)
+### P12 · Расширить Mini App — страница "Мой список"
 
-- **Новый файл `dashboard.py`**: FastAPI (≤ 200 строк) + Jinja2
-- Авторизация через Telegram Login Widget (OAuth, без пароля)
-- Страницы: My Jobs (таблица со скорами), Tracker (kanban: pending/applied/interviewing/offer), Stats
-- Деплой: второй Railway сервис, тот же PostgreSQL
+Mini App уже есть (swipe-карточки, `applied=3`). Следующий шаг — показывать сохранённые вакансии прямо в webapp.
+
+- **`webapp.py`**: новый роут `GET /api/saved` → `get_interested_jobs(chat_id)`
+- **`static/index.html`**: вкладки "Карточки" / "Мой список" в хедере
+- Вкладка "Мой список": скролл-список карточек с кнопками "Откликнуться 🔗" и "Убрать ❌"
+- Убрать = `POST /api/skip` (перевод обратно в `applied=2`)
+
+Зависимость: нужен `WEBAPP_URL` на Railway (уже поддерживается).
 
 ---
 
@@ -216,3 +220,12 @@ Railway free PostgreSQL не делает автобэкапов.
 - `_get_conn()` с rollback при исключении
 - `applied_at TIMESTAMPTZ`, `job_status`, `created_at` колонки в `jobs`
 - `last_scrape_at` в `user_settings`
+- Job expiry cleanup: `delete_expired_jobs()` + PTB daily job queue (P8)
+- **Telegram Mini App** (`webapp.py` + `static/index.html`):
+  - FastAPI сервер запускается в daemon-треде внутри одного Railway-процесса
+  - HMAC-SHA256 аутентификация через Telegram initData
+  - Swipe-карточки: влево = skip, вправо = save (📋), кнопка = apply
+  - `applied = 3` (interested/saved) — новый статус в БД
+  - `mark_interested()` + `get_interested_jobs()` в `database.py`
+  - `/jobs` открывает Mini App кнопкой если `WEBAPP_URL` задан, иначе старый режим
+  - Strings в EN/RU/PL: `webapp_btn`, `webapp_open`, `webapp_not_configured`, `interested_msg`
