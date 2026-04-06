@@ -656,8 +656,19 @@ def main():
     app.add_handler(CallbackQueryHandler(on_skip,      pattern=r"^skip:"))
     app.add_handler(CallbackQueryHandler(on_letter,    pattern=r"^letter:"))
 
+    async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        from telegram.error import Conflict, NetworkError
+        if isinstance(context.error, Conflict):
+            logger.warning("Conflict: another bot instance is running. Retrying…")
+            return
+        if isinstance(context.error, NetworkError):
+            logger.warning("NetworkError: %s", context.error)
+            return
+        logger.error("Unhandled error", exc_info=context.error)
+
+    app.add_error_handler(_error_handler)
     logger.info("Bot started.")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
