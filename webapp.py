@@ -16,7 +16,7 @@ import os
 from urllib.parse import parse_qsl
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from config import DEFAULT_MIN_SCORE
 from database import get_jobs_to_apply, mark_applied, mark_interested
@@ -65,6 +65,16 @@ def _auth(request: Request) -> int:
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
+
+@app.get("/")
+async def health():
+    return {"status": "ok"}
+
+
+@app.get("/")
+async def root():
+    return RedirectResponse(url="/app")
+
 
 @app.get("/app")
 async def webapp_index():
