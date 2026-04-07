@@ -247,7 +247,13 @@ async function loadJobs() {
       renderDeck();
     }
   } catch (e) {
-    showState('❌', 'Error', e.message + '\n\ninitData len: ' + tg.initData.length);
+    const dbg = [
+      'initData len: ' + tg.initData.length,
+      'version: ' + (tg.version || '—'),
+      'platform: ' + (tg.platform || '—'),
+      'proxy: ' + (!!window.TelegramWebviewProxy),
+    ].join('\n');
+    showState('❌', 'Error', e.message + '\n\n' + dbg);
   }
 }
 
