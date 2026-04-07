@@ -15,7 +15,7 @@ import logging
 import os
 from urllib.parse import parse_qsl
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
 from config import DEFAULT_MIN_SCORE
@@ -52,12 +52,8 @@ def _verify_init_data(init_data: str) -> dict:
     return json.loads(user_json)
 
 
-def _auth(request: Request) -> int:
-    """Extract and validate chat_id from Authorization: tma <initData> header."""
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("tma "):
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
-    init_data = auth[4:]
+def _auth(init_data: str = Query(default="", alias="init_data")) -> int:
+    """Validate Telegram initData from query param and return chat_id."""
     if not init_data:
         raise HTTPException(status_code=401, detail="initData is empty — open via Telegram")
     try:
@@ -82,8 +78,7 @@ async def webapp_index():
 
 
 @app.get("/api/jobs")
-async def api_jobs(request: Request):
-    chat_id = _auth(request)
+async def api_jobs(chat_id: int = Depends(_auth)):
     rows = get_jobs_to_apply(chat_id, min_score=DEFAULT_MIN_SCORE, limit=100, offset=0)
     jobs = []
     for row in rows:
@@ -105,24 +100,21 @@ async def api_jobs(request: Request):
 
 
 @app.post("/api/skip")
-async def api_skip(request: Request):
-    chat_id = _auth(request)
+async def api_skip(request: Request, chat_id: int = Depends(_auth)):
     body = await request.json()
     mark_applied(int(body["job_id"]), chat_id, status=2)
     return {"ok": True}
 
 
 @app.post("/api/save")
-async def api_save(request: Request):
-    chat_id = _auth(request)
+async def api_save(request: Request, chat_id: int = Depends(_auth)):
     body = await request.json()
     mark_interested(int(body["job_id"]), chat_id)
     return {"ok": True}
 
 
 @app.post("/api/apply")
-async def api_apply(request: Request):
-    chat_id = _auth(request)
+async def api_apply(request: Request, chat_id: int = Depends(_auth)):
     body = await request.json()
     mark_applied(int(body["job_id"]), chat_id, status=1)
     return {"ok": True}

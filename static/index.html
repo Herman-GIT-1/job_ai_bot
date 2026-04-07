@@ -220,15 +220,14 @@ const counter = document.getElementById('counter');
 
 // ── API ────────────────────────────────────────────────────────────────────
 async function apiFetch(path, method = 'GET', body = null) {
+  const sep = path.includes('?') ? '&' : '?';
+  const url = path + sep + 'init_data=' + encodeURIComponent(tg.initData);
   const opts = {
     method,
-    headers: {
-      'Authorization': 'tma ' + tg.initData,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
   };
   if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(path, opts);
+  const res = await fetch(url, opts);
   if (!res.ok) {
     const detail = await res.text().catch(() => '');
     throw new Error('HTTP ' + res.status + ': ' + detail);
