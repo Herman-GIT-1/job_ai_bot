@@ -6,8 +6,7 @@ import datetime
 import functools
 import logging
 import os
-from telegram import (Update, InlineKeyboardButton, InlineKeyboardMarkup,
-                       KeyboardButton, ReplyKeyboardMarkup, WebAppInfo)
+from telegram import (Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo)
 from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
                           MessageHandler, ConversationHandler, filters, ContextTypes)
 
@@ -286,10 +285,9 @@ async def cmd_jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     lang_code = _lang(update)
     if WEBAPP_URL:
-        keyboard = ReplyKeyboardMarkup(
-            [[KeyboardButton(t(lang_code, "webapp_btn"), web_app=WebAppInfo(url=WEBAPP_URL))]],
-            resize_keyboard=True,
-        )
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton(t(lang_code, "webapp_btn"), web_app=WebAppInfo(url=WEBAPP_URL))
+        ]])
         await update.message.reply_text(t(lang_code, "webapp_open"), reply_markup=keyboard)
     else:
         try:

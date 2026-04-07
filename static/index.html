@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Job Cards</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
@@ -201,22 +202,20 @@ body {
   <button class="btn btn-apply" onclick="doAction('apply')">✅<br>Apply</button>
 </div>
 
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>
 const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand();
 
-// Fallback: read initData directly from URL hash if tg.initData is empty
 function getInitData() {
-  if (tg.initData) return tg.initData;
-  const hash = location.hash.slice(1);
-  if (hash) {
-    const p = new URLSearchParams(hash);
-    const d = p.get('tgWebAppData');
-    if (d) return decodeURIComponent(d);
-  }
-  return '';
+  return tg.initData || '';
+}
+
+// iOS: initData may arrive slightly after tg.ready() — retry a few times
+function waitForInitData(retries, callback) {
+  if (tg.initData) { callback(); return; }
+  if (retries <= 0) { callback(); return; }   // give up, let loadJobs show the error
+  setTimeout(() => waitForInitData(retries - 1, callback), 150);
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -443,7 +442,7 @@ function fly(type) {
 }
 
 // ── Start ──────────────────────────────────────────────────────────────────
-loadJobs();
+waitForInitData(5, loadJobs);   // up to 5 × 150ms = 750ms retry on iOS
 </script>
 </body>
 </html>
