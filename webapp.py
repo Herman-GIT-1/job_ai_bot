@@ -57,10 +57,15 @@ def _auth(request: Request) -> int:
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("tma "):
         raise HTTPException(status_code=401, detail="Missing Authorization header")
+    init_data = auth[4:]
+    if not init_data:
+        raise HTTPException(status_code=401, detail="initData is empty — open via Telegram")
     try:
-        user = _verify_init_data(auth[4:])
+        user = _verify_init_data(init_data)
         return int(user["id"])
     except (ValueError, KeyError) as e:
+        logger.warning("Auth failed: %s | token_len=%d | init_data_len=%d",
+                       e, len(BOT_TOKEN), len(init_data))
         raise HTTPException(status_code=401, detail=str(e))
 
 
