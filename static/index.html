@@ -229,7 +229,10 @@ async function apiFetch(path, method = 'GET', body = null) {
   };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(path, opts);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error('HTTP ' + res.status + ': ' + detail);
+  }
   return res.json();
 }
 
@@ -245,7 +248,7 @@ async function loadJobs() {
       renderDeck();
     }
   } catch (e) {
-    showState('❌', 'Error', e.message);
+    showState('❌', 'Error', e.message + '\n\ninitData len: ' + tg.initData.length);
   }
 }
 
