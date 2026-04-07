@@ -207,6 +207,18 @@ const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand();
 
+// Fallback: read initData directly from URL hash if tg.initData is empty
+function getInitData() {
+  if (tg.initData) return tg.initData;
+  const hash = location.hash.slice(1);
+  if (hash) {
+    const p = new URLSearchParams(hash);
+    const d = p.get('tgWebAppData');
+    if (d) return decodeURIComponent(d);
+  }
+  return '';
+}
+
 // ── State ──────────────────────────────────────────────────────────────────
 let jobs = [];
 let cur  = 0;
@@ -221,7 +233,7 @@ const counter = document.getElementById('counter');
 // ── API ────────────────────────────────────────────────────────────────────
 async function apiFetch(path, method = 'GET', body = null) {
   const sep = path.includes('?') ? '&' : '?';
-  const url = path + sep + 'init_data=' + encodeURIComponent(tg.initData);
+  const url = path + sep + 'init_data=' + encodeURIComponent(getInitData());
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -247,8 +259,11 @@ async function loadJobs() {
       renderDeck();
     }
   } catch (e) {
+    const id = getInitData();
     const dbg = [
-      'initData len: ' + tg.initData.length,
+      'initData len: ' + id.length,
+      'tg.initData len: ' + tg.initData.length,
+      'hash len: ' + location.hash.length,
       'version: ' + (tg.version || '—'),
       'platform: ' + (tg.platform || '—'),
       'proxy: ' + (!!window.TelegramWebviewProxy),
