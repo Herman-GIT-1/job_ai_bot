@@ -267,10 +267,12 @@ async function loadJobs() {
     }
   } catch (e) {
     const id = getInitData();
+    const h = location.hash.slice(1);
     const dbg = [
       'initData len: ' + id.length,
       'tg.initData len: ' + tg.initData.length,
-      'hash len: ' + location.hash.length,
+      'hash len: ' + h.length,
+      'hash[:80]: ' + h.slice(0, 80),
       'version: ' + (tg.version || '—'),
       'platform: ' + (tg.platform || '—'),
       'proxy: ' + (!!window.TelegramWebviewProxy),
