@@ -207,14 +207,22 @@ const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand();
 
+// iOS Telegram passes initData via URL hash (tgWebAppData param) when tg.initData is empty
 function getInitData() {
-  return tg.initData || '';
+  if (tg.initData) return tg.initData;
+  const hash = location.hash.slice(1);
+  if (hash) {
+    const p = new URLSearchParams(hash);
+    const d = p.get('tgWebAppData');
+    if (d) return decodeURIComponent(d);
+  }
+  return '';
 }
 
-// iOS: initData may arrive slightly after tg.ready() — retry a few times
+// Wait until initData is available (either via tg.initData or hash fallback)
 function waitForInitData(retries, callback) {
-  if (tg.initData) { callback(); return; }
-  if (retries <= 0) { callback(); return; }   // give up, let loadJobs show the error
+  if (getInitData()) { callback(); return; }
+  if (retries <= 0) { callback(); return; }
   setTimeout(() => waitForInitData(retries - 1, callback), 150);
 }
 
