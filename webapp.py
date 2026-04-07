@@ -67,11 +67,6 @@ def _auth(request: Request) -> int:
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
 @app.get("/")
-async def health():
-    return {"status": "ok"}
-
-
-@app.get("/")
 async def root():
     return RedirectResponse(url="/app")
 
