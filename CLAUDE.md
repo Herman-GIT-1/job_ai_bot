@@ -4,7 +4,6 @@ AI-powered job search bot · Telegram · PostgreSQL · Claude API · multi-user 
 
 ## Rules (read before changing anything)
 
-Commit every changes
 
 | File | When to read |
 |---|---|

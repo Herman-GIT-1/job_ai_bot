@@ -1,68 +1,77 @@
 # Job Search Bot 🤖
 
-Автоматизированный поиск стажировок: собирает вакансии с Adzuna, оценивает их через AI, генерирует cover letter и уведомляет через Telegram.
+Automated internship and junior job search bot: scrapes vacancies from Adzuna, NoFluffJobs and Remotive, scores them with AI, generates cover letters, and delivers results via Telegram.
 
-## Установка
+## Installation
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Настройка
+## Configuration
 
-Создай файл `.env` в корне проекта (`.env.example` есть в репозитории):
+Create a `.env` file in the project root (`.env.example` is included in the repository):
 
 ```env
-CLAUDE_API_KEY=your_anthropic_api_key_here
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+DATABASE_URL=postgresql://user:password@localhost:5432/job_bot
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+TELEGRAM_CHAT_ID=your_telegram_chat_id_here   # admin chat_id — get it from @userinfobot
 ADZUNA_APP_ID=your_adzuna_app_id_here
 ADZUNA_APP_KEY=your_adzuna_app_key_here
-TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
-TELEGRAM_CHAT_ID=your_telegram_chat_id_here
 ```
 
-| Переменная | Где получить |
+| Variable | Where to get it |
 |---|---|
-| `CLAUDE_API_KEY` | console.claude.com → API Keys |
+| `ANTHROPIC_API_KEY` | console.anthropic.com → API Keys |
+| `DATABASE_URL` | Railway injects automatically; locally use `postgresql://...` |
+| `TELEGRAM_BOT_TOKEN` | @BotFather on Telegram |
+| `TELEGRAM_CHAT_ID` | @userinfobot on Telegram |
 | `ADZUNA_APP_ID` | developer.adzuna.com → My Apps |
 | `ADZUNA_APP_KEY` | developer.adzuna.com → My Apps |
-| `TELEGRAM_BOT_TOKEN` | @BotFather в Telegram |
-| `TELEGRAM_CHAT_ID` | @userinfobot в Telegram |
 
-## Запуск
+## Running
 
 ```bash
-python main.py --scrape   # найти вакансии и сохранить в БД
-python main.py --score    # AI-оценка + генерация cover letter
-python main.py --apply    # открыть лучшие вакансии (score >= 7) в браузере
-python main.py --bot      # запустить Telegram-бот
-python main.py --all      # scrape + score + apply последовательно
+python main.py --scrape   # find vacancies and save to DB
+python main.py --score    # AI scoring + cover letter generation
+python main.py --apply    # open top vacancies (score >= 7) in browser
+python main.py --bot      # start the Telegram bot
+python main.py --all      # scrape + score + apply in sequence
 ```
 
-## Команды Telegram-бота
+## Telegram Bot Commands
 
-| Команда | Действие |
+| Command | Action |
 |---|---|
-| `/start` | Приветствие и список команд |
-| `/resume` | Показать текущее резюме (первые 600 символов) |
-| `/scrape` | Найти новые вакансии (спросит город) |
-| `/score` | AI-оценка + cover letter для всех новых вакансий |
-| `/jobs` | Вакансии с оценкой ≥ 7, кнопки: Подать / Пропустить / Письмо |
-| `/stats` | Статистика: найдено, оценено, подано, пропущено |
-| `/stop` | Остановить бота |
-| `<файл>` | Загрузить резюме (.txt / .pdf / .docx) |
+| `/start` | Welcome message and command list |
+| `/resume` | Show current resume (first 600 characters) |
+| `/scrape` | Find new vacancies (will ask for city) |
+| `/score` | AI scoring + cover letter for all new vacancies |
+| `/rescore` | Reset scores and re-score all pending vacancies |
+| `/jobs` | Vacancies with score ≥ 7, buttons: Apply / Skip / Letter |
+| `/tracker` | Application tracker with statuses and follow-up alerts |
+| `/feedback` | AI analysis of your resume (missing skills, weak sections) |
+| `/stats` | Statistics: found, scored, applied, skipped |
+| `/language` | Change interface language (EN / RU / PL) |
+| `/stop` | Stop the bot (admin only) |
+| `<file>` | Upload resume (.txt / .pdf / .docx) |
 
-При нажатии **Письмо 📄** бот отправляет cover letter как `.txt` файл, не меняя статус вакансии.
+Pressing **Letter 📄** sends the cover letter as text directly in the chat without changing the vacancy status.
 
-## Как работает
+## How it works
 
 ```
-Adzuna API → scraper.py → database.py (SQLite)
-                                ↓
-                      ai_score.py + cover_letter.py (Groq)
-                                ↓
-                      bot.py (Telegram) / open_jobs.py (браузер)
+Adzuna API  ─┐
+NoFluffJobs ─┼─→ scraper.py → database.py (PostgreSQL)
+Remotive    ─┘                      ↓
+                       ai_score.py + cover_letter.py (Claude API)
+                                    ↓
+                       bot.py (Telegram) / open_jobs.py (browser)
 ```
 
-- `/scrape` генерирует через Groq 5 поисковых запросов из резюме, делает запрос к Adzuna API по каждому, фильтрует по уровню (junior/intern), сохраняет в `jobs.db`
-- `/score` оценивает каждую новую вакансию (0–10) и генерирует cover letter
-- `/jobs` показывает вакансии с оценкой ≥ 7, не отмеченные как поданные или пропущенные
+- `/scrape` uses Claude to generate 5 personalised search queries from the resume, queries each job source, filters by seniority (junior/intern), and saves results to PostgreSQL
+- `/score` evaluates each new vacancy (0–10) and generates a cover letter for jobs scoring ≥ 7
+- `/jobs` displays vacancies with score ≥ 7 that have not yet been applied to or skipped, with pagination
+- The bot supports **multiple users** — all data is scoped by `chat_id`
+- Deployed on **Railway** with PostgreSQL; the Mini App (swipe UI) runs in the same process via FastAPI
