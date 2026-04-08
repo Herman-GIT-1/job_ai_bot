@@ -35,6 +35,13 @@ body {
   background: rgba(142,142,147,0.12);
   padding: 3px 9px;
   border-radius: 20px;
+  cursor: pointer;
+}
+.header-back {
+  font-size: 15px;
+  color: var(--tg-theme-button-color, #007aff);
+  cursor: pointer;
+  padding: 4px 0;
 }
 
 /* ── Deck area ── */
@@ -73,110 +80,105 @@ body {
 .card.fly-left  {
   transition: transform 0.35s cubic-bezier(.4,0,.2,1), opacity 0.35s;
   transform: translateX(-130%) rotate(-18deg) !important;
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0; pointer-events: none;
 }
 .card.fly-right {
   transition: transform 0.35s cubic-bezier(.4,0,.2,1), opacity 0.35s;
   transform: translateX(130%) rotate(18deg) !important;
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0; pointer-events: none;
 }
-.card.fly-up {
-  transition: transform 0.35s cubic-bezier(.4,0,.2,1), opacity 0.35s;
-  transform: translateY(-130%) !important;
-  opacity: 0;
-  pointer-events: none;
-}
-.card.snap-back {
-  transition: transform 0.3s cubic-bezier(.4,0,.2,1);
-}
+.card.snap-back { transition: transform 0.3s cubic-bezier(.4,0,.2,1); }
 
 /* Swipe hint labels */
 .hint {
-  position: absolute;
-  top: 20px;
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  border-radius: 6px;
-  padding: 4px 10px;
-  border-width: 2px;
-  border-style: solid;
-  opacity: 0;
-  transition: opacity 0.08s;
-  pointer-events: none;
+  position: absolute; top: 20px;
+  font-size: 18px; font-weight: 800; letter-spacing: 1px;
+  border-radius: 6px; padding: 4px 10px;
+  border-width: 2px; border-style: solid;
+  opacity: 0; transition: opacity 0.08s; pointer-events: none;
 }
 .hint-skip { left: 16px; color: #e74c3c; border-color: #e74c3c; }
 .hint-save { right: 16px; color: #27ae60; border-color: #27ae60; }
 
 /* Card content */
-.card-score {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 10px;
-}
+.card-score { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
 .score-badge {
   background: var(--tg-theme-button-color, #007aff);
   color: var(--tg-theme-button-text-color, #fff);
-  font-size: 12px;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 8px;
+  font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 8px;
 }
 .score-stars { font-size: 13px; color: var(--tg-theme-hint-color, #8e8e93); }
 .card-title   { font-size: 20px; font-weight: 700; line-height: 1.25; margin-bottom: 5px; }
 .card-company { font-size: 14px; color: var(--tg-theme-hint-color, #8e8e93); margin-bottom: 10px; }
 .card-salary  { font-size: 14px; font-weight: 600; color: #27ae60; margin-bottom: 10px; }
 .card-desc {
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: 14px; line-height: 1.55;
   color: var(--tg-theme-text-color, #3a3a3c);
-  max-height: 130px;
-  overflow: hidden;
-  position: relative;
+  max-height: 130px; overflow: hidden; position: relative;
 }
 .card-desc::after {
-  content: '';
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 44px;
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 44px;
   background: linear-gradient(transparent, var(--tg-theme-secondary-bg-color, #fff));
 }
 
 /* ── Action buttons ── */
 .actions {
-  display: flex;
-  gap: 10px;
-  padding: 10px 16px 20px;
-  flex-shrink: 0;
+  display: flex; gap: 10px;
+  padding: 10px 16px 20px; flex-shrink: 0;
 }
 .btn {
-  flex: 1;
-  padding: 14px 6px;
-  border: none;
-  border-radius: 14px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.1s, opacity 0.1s;
-  line-height: 1.3;
+  flex: 1; padding: 14px 6px; border: none; border-radius: 14px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: transform 0.1s, opacity 0.1s; line-height: 1.3;
 }
 .btn:active { transform: scale(0.94); opacity: 0.75; }
-.btn-skip  { background: #fdecea; color: #c0392b; }
-.btn-save  { background: #e8f5e9; color: #1e8449; }
-.btn-apply {
+.btn-skip { background: #fdecea; color: #c0392b; }
+.btn-list { background: rgba(142,142,147,0.15); color: var(--tg-theme-text-color, #1c1c1e); }
+.btn-save {
   background: var(--tg-theme-button-color, #007aff);
   color: var(--tg-theme-button-text-color, #fff);
 }
 
-/* ── States ── */
-.state {
-  text-align: center;
-  padding: 32px 24px;
-  max-width: 320px;
+/* ── My List view ── */
+.list-view {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 16px 20px;
+  display: none;
+  flex-direction: column;
+  gap: 12px;
 }
+.list-view.active { display: flex; }
+
+.list-item {
+  background: var(--tg-theme-secondary-bg-color, #fff);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+.list-item-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.list-item-info { flex: 1; min-width: 0; }
+.list-item-title   { font-size: 16px; font-weight: 700; margin-bottom: 3px; }
+.list-item-company { font-size: 13px; color: var(--tg-theme-hint-color, #8e8e93); }
+.list-item-score {
+  font-size: 12px; font-weight: 700;
+  background: var(--tg-theme-button-color, #007aff);
+  color: var(--tg-theme-button-text-color, #fff);
+  padding: 3px 8px; border-radius: 8px; white-space: nowrap; flex-shrink: 0;
+}
+.list-item-apply {
+  display: block; width: 100%; margin-top: 12px;
+  padding: 10px; border: none; border-radius: 10px;
+  background: var(--tg-theme-button-color, #007aff);
+  color: var(--tg-theme-button-text-color, #fff);
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: opacity 0.1s;
+}
+.list-item-apply:active { opacity: 0.75; }
+
+/* ── States ── */
+.state { text-align: center; padding: 32px 24px; max-width: 320px; }
 .state-emoji { font-size: 52px; margin-bottom: 14px; }
 .state h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
 .state p  { font-size: 15px; color: var(--tg-theme-hint-color, #8e8e93); line-height: 1.5; }
@@ -184,22 +186,32 @@ body {
 </head>
 <body>
 
-<div class="header">
+<!-- Cards view header -->
+<div class="header" id="header-cards">
   <span class="header-title">Job Cards</span>
-  <span class="header-count" id="counter"></span>
+  <span class="header-count" id="counter" onclick="openMyList()" title="My list"></span>
 </div>
 
+<!-- My list view header -->
+<div class="header" id="header-list" style="display:none">
+  <span class="header-back" onclick="closeMyList()">← Back</span>
+  <span class="header-title">My List</span>
+  <span style="width:48px"></span>
+</div>
+
+<!-- Card deck -->
 <div class="deck" id="deck">
-  <div class="state">
-    <div class="state-emoji">⏳</div>
-    <h2>Loading…</h2>
-  </div>
+  <div class="state"><div class="state-emoji">⏳</div><h2>Loading…</h2></div>
 </div>
 
+<!-- My list -->
+<div class="list-view" id="list-view"></div>
+
+<!-- Action buttons -->
 <div class="actions" id="actions" style="display:none">
-  <button class="btn btn-skip"  onclick="doAction('skip')">❌<br>Skip</button>
-  <button class="btn btn-save"  onclick="doAction('save')">📋<br>My list</button>
-  <button class="btn btn-apply" onclick="doAction('apply')">✅<br>Apply</button>
+  <button class="btn btn-skip" onclick="doAction('skip')">❌<br>Skip</button>
+  <button class="btn btn-list" onclick="openMyList()">📋<br>My list</button>
+  <button class="btn btn-save" onclick="doAction('save')">💾<br>Save</button>
 </div>
 
 <script>
@@ -207,22 +219,21 @@ const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand();
 
-// iOS Telegram passes initData via URL hash (tgWebAppData param) when tg.initData is empty
+// iOS: initData arrives via URL hash; tg.initData may be empty on first tick
 function getInitData() {
   if (tg.initData) return tg.initData;
   const hash = location.hash.slice(1);
   if (hash) {
     const p = new URLSearchParams(hash);
     const d = p.get('tgWebAppData');
-    if (d) return decodeURIComponent(d);
+    if (d) return d;
   }
   return '';
 }
 
-// Wait until initData is available (either via tg.initData or hash fallback)
 function waitForInitData(retries, callback) {
   if (getInitData()) { callback(); return; }
-  if (retries <= 0) { callback(); return; }
+  if (retries <= 0)  { callback(); return; }
   setTimeout(() => waitForInitData(retries - 1, callback), 150);
 }
 
@@ -230,21 +241,22 @@ function waitForInitData(retries, callback) {
 let jobs = [];
 let cur  = 0;
 let frontCard = null;
-let dragStartX = 0, dragStartY = 0, dragDeltaX = 0;
+let dragStartX = 0, dragDeltaX = 0;
 let isDragging = false;
+let inListView = false;
 
-const deck    = document.getElementById('deck');
-const actions = document.getElementById('actions');
-const counter = document.getElementById('counter');
+const deck       = document.getElementById('deck');
+const listView   = document.getElementById('list-view');
+const actions    = document.getElementById('actions');
+const counter    = document.getElementById('counter');
+const headerCards = document.getElementById('header-cards');
+const headerList  = document.getElementById('header-list');
 
 // ── API ────────────────────────────────────────────────────────────────────
 async function apiFetch(path, method = 'GET', body = null) {
   const sep = path.includes('?') ? '&' : '?';
   const url = path + sep + 'init_data=' + encodeURIComponent(getInitData());
-  const opts = {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-  };
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
   if (!res.ok) {
@@ -281,6 +293,64 @@ async function loadJobs() {
   }
 }
 
+// ── My List view ───────────────────────────────────────────────────────────
+async function openMyList() {
+  inListView = true;
+  deck.style.display      = 'none';
+  actions.style.display   = 'none';
+  headerCards.style.display = 'none';
+  headerList.style.display  = 'flex';
+  listView.classList.add('active');
+  listView.innerHTML = '<div class="state"><div class="state-emoji">⏳</div><h2>Loading…</h2></div>';
+
+  try {
+    const data = await apiFetch('/api/saved');
+    const saved = data.jobs || [];
+    if (saved.length === 0) {
+      listView.innerHTML = '<div class="state"><div class="state-emoji">📋</div><h2>List is empty</h2><p>Swipe right or press Save to add vacancies here.</p></div>';
+      return;
+    }
+    listView.innerHTML = '';
+    saved.forEach(job => {
+      const item = document.createElement('div');
+      item.className = 'list-item';
+      item.innerHTML = `
+        <div class="list-item-top">
+          <div class="list-item-info">
+            <div class="list-item-title">${esc(job.title)}</div>
+            <div class="list-item-company">🏢 ${esc(job.company)}</div>
+          </div>
+          <span class="list-item-score">${job.score}/10</span>
+        </div>
+        <button class="list-item-apply" onclick="applyJob(${job.id}, '${esc(job.link)}', this)">
+          ✅ Apply
+        </button>
+      `;
+      listView.appendChild(item);
+    });
+  } catch (e) {
+    listView.innerHTML = `<div class="state"><div class="state-emoji">❌</div><h2>Error</h2><p>${e.message}</p></div>`;
+  }
+}
+
+function closeMyList() {
+  inListView = false;
+  listView.classList.remove('active');
+  listView.innerHTML = '';
+  headerCards.style.display = 'flex';
+  headerList.style.display  = 'none';
+  deck.style.display = '';
+  if (jobs.length > 0 && cur < jobs.length) actions.style.display = 'flex';
+}
+
+async function applyJob(jobId, link, btn) {
+  btn.disabled = true;
+  btn.textContent = 'Applied ✓';
+  apiFetch('/api/apply', 'POST', { job_id: jobId }).catch(console.error);
+  if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+  tg.openLink(link);
+}
+
 // ── Rendering ──────────────────────────────────────────────────────────────
 function updateCounter() {
   const rem = jobs.length - cur;
@@ -288,6 +358,7 @@ function updateCounter() {
 }
 
 function renderDeck() {
+  if (inListView) return;
   deck.innerHTML = '';
   if (cur >= jobs.length) {
     showState('🎉', 'All done!', 'No more jobs to review.\nRun /scrape to find more.');
@@ -296,15 +367,11 @@ function renderDeck() {
     return;
   }
   updateCounter();
-
-  // Back card (next job, slightly behind)
   if (cur + 1 < jobs.length) {
     const back = buildCard(jobs[cur + 1]);
     back.classList.add('is-back');
     deck.appendChild(back);
   }
-
-  // Front card (current job)
   frontCard = buildCard(jobs[cur]);
   frontCard.classList.add('is-front');
   deck.appendChild(frontCard);
@@ -314,112 +381,76 @@ function renderDeck() {
 function buildCard(job) {
   const el = document.createElement('div');
   el.className = 'card';
-
-  const stars = buildStars(job.score);
-  let salaryHtml = '';
-  if (job.salary_min) {
-    const c = job.salary_currency || 'PLN';
-    const range = job.salary_max
-      ? `${fmt(job.salary_min)}–${fmt(job.salary_max)}`
-      : `from ${fmt(job.salary_min)}`;
-    salaryHtml = `<div class="card-salary">💰 ${range} ${c}</div>`;
-  }
-
   el.innerHTML = `
     <div class="hint hint-skip">SKIP</div>
     <div class="hint hint-save">SAVE</div>
     <div class="card-score">
       <span class="score-badge">${job.score}/10</span>
-      <span class="score-stars">${stars}</span>
+      <span class="score-stars">${buildStars(job.score)}</span>
     </div>
     <div class="card-title">${esc(job.title)}</div>
     <div class="card-company">🏢 ${esc(job.company)}</div>
-    ${salaryHtml}
     <div class="card-desc">${esc(job.description || 'No description available.')}</div>
   `;
   return el;
 }
 
 function buildStars(score) {
-  const filled = Math.round(score / 2);
-  return '★'.repeat(filled) + '☆'.repeat(5 - filled);
+  const f = Math.round(score / 2);
+  return '★'.repeat(f) + '☆'.repeat(5 - f);
 }
-
 function fmt(n) { return Number(n).toLocaleString(); }
 function esc(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-
 function showState(emoji, title, text) {
-  deck.innerHTML = `
-    <div class="state">
-      <div class="state-emoji">${emoji}</div>
-      <h2>${title}</h2>
-      <p>${text.replace(/\n/g, '<br>')}</p>
-    </div>
-  `;
+  deck.innerHTML = `<div class="state"><div class="state-emoji">${emoji}</div><h2>${title}</h2><p>${text.replace(/\n/g,'<br>')}</p></div>`;
 }
 
-// ── Drag (touch + mouse) ───────────────────────────────────────────────────
+// ── Drag ───────────────────────────────────────────────────────────────────
 function attachDrag(card) {
   card.addEventListener('touchstart', onStart, { passive: true });
   card.addEventListener('touchmove',  onMove,  { passive: false });
   card.addEventListener('touchend',   onEnd);
   card.addEventListener('mousedown',  onStart);
 }
-
 function onStart(e) {
-  isDragging = true;
-  dragDeltaX = 0;
+  isDragging = true; dragDeltaX = 0;
   const pt = e.touches ? e.touches[0] : e;
   dragStartX = pt.clientX;
-  dragStartY = pt.clientY;
   frontCard.classList.add('dragging');
   if (!e.touches) {
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup',   onEnd);
   }
 }
-
 function onMove(e) {
   if (!isDragging) return;
   if (e.cancelable) e.preventDefault();
-  const pt  = e.touches ? e.touches[0] : e;
+  const pt = e.touches ? e.touches[0] : e;
   dragDeltaX = pt.clientX - dragStartX;
-  const dy   = (pt.clientY - dragStartY) * 0.25;
-  const rot  = dragDeltaX * 0.07;
-  frontCard.style.transform = `translateX(${dragDeltaX}px) translateY(${dy}px) rotate(${rot}deg)`;
-
+  const rot = dragDeltaX * 0.07;
+  frontCard.style.transform = `translateX(${dragDeltaX}px) rotate(${rot}deg)`;
   const skipHint = frontCard.querySelector('.hint-skip');
   const saveHint = frontCard.querySelector('.hint-save');
   if (dragDeltaX < -40) {
-    skipHint.style.opacity = Math.min(Math.abs(dragDeltaX) / 100, 1);
-    saveHint.style.opacity = 0;
+    skipHint.style.opacity = Math.min(Math.abs(dragDeltaX)/100,1); saveHint.style.opacity=0;
   } else if (dragDeltaX > 40) {
-    saveHint.style.opacity = Math.min(dragDeltaX / 100, 1);
-    skipHint.style.opacity = 0;
+    saveHint.style.opacity = Math.min(dragDeltaX/100,1); skipHint.style.opacity=0;
   } else {
-    skipHint.style.opacity = 0;
-    saveHint.style.opacity = 0;
+    skipHint.style.opacity=0; saveHint.style.opacity=0;
   }
 }
-
 function onEnd() {
   if (!isDragging) return;
   isDragging = false;
   frontCard.classList.remove('dragging');
   document.removeEventListener('mousemove', onMove);
   document.removeEventListener('mouseup',   onEnd);
-
   const threshold = window.innerWidth * 0.28;
-  if (dragDeltaX < -threshold) {
-    fly('skip');
-  } else if (dragDeltaX > threshold) {
-    fly('save');
-  } else {
+  if (dragDeltaX < -threshold) fly('skip');
+  else if (dragDeltaX > threshold) fly('save');
+  else {
     frontCard.classList.add('snap-back');
     frontCard.style.transform = '';
     frontCard.querySelector('.hint-skip').style.opacity = 0;
@@ -434,25 +465,17 @@ function doAction(type) {
   if (cur >= jobs.length || !frontCard) return;
   fly(type);
 }
-
 function fly(type) {
   const job = jobs[cur];
-  const flyClass = type === 'skip' ? 'fly-left' : type === 'save' ? 'fly-right' : 'fly-up';
-
-  frontCard.classList.add(flyClass);
+  frontCard.classList.add(type === 'skip' ? 'fly-left' : 'fly-right');
   cur++;
-
-  // Fire-and-forget API call — don't block the UI
   apiFetch('/api/' + type, 'POST', { job_id: job.id }).catch(console.error);
-
   if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-  if (type === 'apply') tg.openLink(job.link);
-
   setTimeout(renderDeck, 360);
 }
 
 // ── Start ──────────────────────────────────────────────────────────────────
-waitForInitData(5, loadJobs);   // up to 5 × 150ms = 750ms retry on iOS
+waitForInitData(5, loadJobs);
 </script>
 </body>
 </html>

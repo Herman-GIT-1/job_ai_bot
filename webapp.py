@@ -19,7 +19,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
 from config import DEFAULT_MIN_SCORE
-from database import get_jobs_to_apply, mark_applied, mark_interested
+from database import get_jobs_to_apply, get_interested_jobs, mark_applied, mark_interested
 
 logger = logging.getLogger(__name__)
 
@@ -118,3 +118,20 @@ async def api_apply(request: Request, chat_id: int = Depends(_auth)):
     body = await request.json()
     mark_applied(int(body["job_id"]), chat_id, status=1)
     return {"ok": True}
+
+
+@app.get("/api/saved")
+async def api_saved(chat_id: int = Depends(_auth)):
+    rows = get_interested_jobs(chat_id)
+    jobs = []
+    for row in rows:
+        job_id, title, company, link, score, cover_letter = row
+        jobs.append({
+            "id": job_id,
+            "title": title or "",
+            "company": company or "",
+            "link": link or "",
+            "score": score or 0,
+            "cover_letter": cover_letter or "",
+        })
+    return {"jobs": jobs}
