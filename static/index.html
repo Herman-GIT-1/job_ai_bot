@@ -165,6 +165,11 @@ body {
   background: var(--tg-theme-button-color, #007aff);
   color: var(--tg-theme-button-text-color, #fff);
 }
+.btn-skip.disabled, .btn-save.disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
 
 /* ── My List view ── */
 .list-view {
@@ -318,10 +323,11 @@ async function loadJobs() {
   try {
     const data = await apiFetch('/api/jobs');
     jobs = data.jobs || [];
+    actions.style.display = 'flex';
     if (jobs.length === 0) {
+      setSwipeButtonsDisabled(true);
       showState('🎉', 'All done!', 'No more jobs to review.\nRun /scrape to find more.');
     } else {
-      actions.style.display = 'flex';
       renderDeck();
     }
   } catch (e) {
@@ -488,6 +494,11 @@ async function moveStatus(jobId, status, btn) {
 }
 
 // ── Rendering ──────────────────────────────────────────────────────────────
+function setSwipeButtonsDisabled(disabled) {
+  document.querySelector('.btn-skip').classList.toggle('disabled', disabled);
+  document.querySelector('.btn-save').classList.toggle('disabled', disabled);
+}
+
 function updateCounter() {
   const rem = jobs.length - cur;
   counter.textContent = rem > 0 ? rem + ' left' : '';
@@ -497,11 +508,12 @@ function renderDeck() {
   if (inListView) return;
   deck.innerHTML = '';
   if (cur >= jobs.length) {
+    setSwipeButtonsDisabled(true);
     showState('🎉', 'All done!', 'No more jobs to review.\nRun /scrape to find more.');
-    actions.style.display = 'none';
     counter.textContent = '';
     return;
   }
+  setSwipeButtonsDisabled(false);
   updateCounter();
   if (cur + 1 < jobs.length) {
     const back = buildCard(jobs[cur + 1]);
