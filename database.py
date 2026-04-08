@@ -278,6 +278,40 @@ def update_job_status(job_id: int, chat_id: int, job_status: str) -> None:
         conn.commit()
 
 
+def move_to_status(job_id: int, chat_id: int, job_status: str) -> None:
+    """Move job to a tracker status, updating applied flag accordingly.
+
+    interviewing/rejected/offer → applied=1 (counted as applied in stats)
+    interested → applied=3 (back to saved list)
+    """
+    try:
+        applied_val = 3 if job_status == "interested" else 1
+        with _get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE jobs SET job_status = %s, applied = %s,"
+                    " applied_at = COALESCE(applied_at, NOW())"
+                    " WHERE id = %s AND chat_id = %s",
+                    (job_status, applied_val, job_id, chat_id),
+                )
+            conn.commit()
+    except Exception as e:
+        logger.error("move_to_status error: %s", e)
+
+
+def get_jobs_by_status(chat_id: int, job_status: str) -> list:
+    """Return jobs with specific job_status for tracker tabs (ordered by applied_at)."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, title, company, link, score, job_status"
+                " FROM jobs WHERE chat_id = %s AND job_status = %s"
+                " ORDER BY applied_at DESC NULLS LAST, score DESC",
+                (chat_id, job_status),
+            )
+            return cur.fetchall()
+
+
 def get_applied_jobs(chat_id: int) -> list:
     """Return applied jobs ordered by applied_at for /tracker."""
     with _get_conn() as conn:
