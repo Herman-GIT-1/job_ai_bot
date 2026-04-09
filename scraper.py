@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 ADZUNA_APP_ID = os.environ.get("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.environ.get("ADZUNA_APP_KEY")
 ADZUNA_BASE_URL = "https://api.adzuna.com/v1/api/jobs/pl/search/1"
-JUSTJOIN_URL = "https://justjoin.it/api/offers"
+JUSTJOIN_API = "https://justjoin.it/api/candidate-api/offers"
+ROCKETJOBS_API = "https://rocketjobs.pl/api/candidate-api/offers"
 REMOTIVE_URL = "https://remotive.com/api/remote-jobs"
 NFJ_SEARCH_URL = "https://nofluffjobs.com/api/search/posting?salaryCurrency=PLN&salaryPeriod=month"
 NFJ_HEADERS = {
@@ -59,15 +60,16 @@ def build_queries(resume_text: str, city: str) -> tuple[list[str], bool, list[st
     """Use Claude to generate job search terms and Remotive categories from resume.
     Returns (queries, used_fallback, remotive_categories)."""
     prompt = f"""Analyze this resume and return a JSON object with two keys:
-- "queries": array of 5 short job search strings for junior/intern positions in {city}, Poland.
+- "queries": array of 6 short job search strings for positions in {city}, Poland, based on the person's skills, split evenly:
+    * 3 strings for JUNIOR roles  — start with "junior" or "młodszy"
+    * 3 strings for INTERN roles  — start with "intern", "stażysta", or "praktykant"
   Each string is a "what" keyword for a job search API (2-4 words max).
-  Base them on the person's actual field of study and skills — do NOT restrict to IT.
+  Base ALL 6 on the person's actual field of study and skills — do NOT restrict to IT.
   Examples for various profiles:
-    IT student:         "junior python developer", "data analyst intern"
-    Marketing student:  "junior marketing specialist", "social media intern"
-    Finance student:    "junior financial analyst", "accounting trainee"
-    Design student:     "junior graphic designer", "ux design intern"
-  Always include at least one Polish term (e.g. "stażysta analityk", "praktykant marketing").
+    IT student:         "junior python developer", "junior data analyst",     "data analyst intern"
+    Marketing student:  "junior marketing specialist", "junior copywriter",   "marketing intern"
+    Finance student:    "junior financial analyst", "junior accountant",      "stażysta analityk"
+    Design student:     "junior graphic designer", "junior ux designer",      "praktykant grafika"
   NEVER include jobs like driver, cashier, warehouse, security, delivery, cook, waiter.
 
 - "remotive_categories": array of 1-3 Remotive API category slugs that best match this resume.
@@ -182,7 +184,7 @@ def _fetch_nofluffjobs(city: str) -> list[dict]:
 
     while page <= total_pages and page <= 5:  # cap at 250 jobs
         body = {
-            "criteriaSearch": {"city": [city_slug], "requirement": ["junior"]},
+            "criteriaSearch": {"city": [city_slug], "requirement": ["junior", "intern", "trainee"]},
             "page": page,
             "pageSize": 50,
         }
@@ -282,6 +284,81 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
     return jobs
 
 
+def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str) -> list[dict]:
+    """Общий fetcher для justjoin.it и rocketjobs.pl — внутренний Next.js API."""
+    jobs = []
+    seen_slugs: set[str] = set()
+
+    for page in range(1, 6):  # максимум 250 вакансий
+        try:
+            r = requests.get(
+                api_url,
+                params={
+                    "experienceLevel[]": ["junior", "intern"],
+                    "city": city_slug,
+                    "limit": 50,
+                    "page": page,
+                },
+                timeout=15,
+            )
+            r.raise_for_status()
+            data = r.json()
+        except Exception as e:
+            logger.error("[%s] Ошибка стр. %d: %s", source, page, e)
+            break
+
+        offers = data.get("data", [])
+        if not offers:
+            break
+
+        for item in offers:
+            slug = item.get("slug", "")
+            if not slug or slug in seen_slugs:
+                continue
+            title = item.get("title", "")
+            if any(w in title.lower() for w in _EXCLUDED_TITLE_KEYWORDS):
+                continue
+            seen_slugs.add(slug)
+
+            emp = (item.get("employmentTypes") or [{}])[0]
+            skills = [s["name"] for s in (item.get("requiredSkills") or [])]
+            description = f"Required skills: {', '.join(skills)}." if skills else ""
+
+            jobs.append({
+                "title": title,
+                "company": item.get("companyName", "Unknown"),
+                "link": f"{base_url}{slug}",
+                "tech_stack": ", ".join(skills[:6]),
+                "remote": item.get("workplaceType") == "remote",
+                "city": item.get("city") or city_slug,
+                "description": description,
+                "source": source,
+                "salary_min": emp.get("from"),
+                "salary_max": emp.get("to"),
+                "salary_currency": emp.get("currency") if emp.get("from") else None,
+            })
+
+        if not (data.get("meta") or {}).get("next"):
+            break
+
+    logger.info("[%s] Найдено подходящих: %d", source, len(jobs))
+    return jobs
+
+
+def _fetch_justjoin(city: str) -> list[dict]:
+    """JustJoin.it — внутренний Next.js API, авторизация не нужна."""
+    city_slug = _city_to_nfj_slug(city)
+    logger.info("[JustJoin] Ищу junior/intern в %s...", city)
+    return _fetch_jjit_api(JUSTJOIN_API, city_slug, "JustJoin", "https://justjoin.it/job-offer/")
+
+
+def _fetch_rocketjobs(city: str) -> list[dict]:
+    """RocketJobs — тот же API-бэкенд что и JustJoin (одна компания)."""
+    city_slug = _city_to_nfj_slug(city)
+    logger.info("[RocketJobs] Ищу junior/intern в %s...", city)
+    return _fetch_jjit_api(ROCKETJOBS_API, city_slug, "RocketJobs", "https://rocketjobs.pl/job-offer/")
+
+
 def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], bool]:
     try:
         resume_text = load_resume(chat_id)
@@ -296,6 +373,8 @@ def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], boo
     raw = []
     raw.extend(_fetch_adzuna(queries, city))
     raw.extend(_fetch_nofluffjobs(city))
+    raw.extend(_fetch_justjoin(city))
+    raw.extend(_fetch_rocketjobs(city))
     raw.extend(_fetch_remotive(remotive_categories))
 
     # Deduplicate by link
