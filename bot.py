@@ -685,6 +685,7 @@ def main():
     app.add_handler(CallbackQueryHandler(on_letter,    pattern=r"^letter:"))
 
     async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        import traceback
         from telegram.error import Conflict, NetworkError
         if isinstance(context.error, Conflict):
             logger.warning("Conflict: another bot instance is running. Retrying…")
@@ -693,6 +694,19 @@ def main():
             logger.warning("NetworkError: %s", context.error)
             return
         logger.error("Unhandled error", exc_info=context.error)
+        try:
+            tb = "".join(traceback.format_exception(
+                type(context.error), context.error, context.error.__traceback__
+            ))
+            user_info = ""
+            if isinstance(update, Update) and update.effective_chat:
+                user_info = f"chat_id={update.effective_chat.id} "
+            text = f"⚠️ Bot error {user_info}\n<pre>{tb[-3000:]}</pre>"
+            await context.bot.send_message(
+                chat_id=ADMIN_CHAT_ID, text=text, parse_mode="HTML"
+            )
+        except Exception:
+            pass  # never let the error handler itself crash the bot
 
     app.add_error_handler(_error_handler)
     logger.info("Bot started.")
