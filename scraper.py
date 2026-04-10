@@ -1,6 +1,8 @@
+import html
 import json
 import logging
 import os
+import re
 import time
 import requests
 from dotenv import load_dotenv
@@ -28,6 +30,17 @@ NFJ_HEADERS = {
 }
 
 _claude = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+
+def _strip_html(text: str, max_len: int = 1500) -> str:
+    """Strip HTML tags, decode entities, collapse whitespace."""
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<li\s*/?>", "\n• ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html.unescape(text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()[:max_len]
 
 TECH_KEYWORDS = [
     "Python", "SQL", "Java", "JavaScript", "TypeScript", "React", "Django",
@@ -66,7 +79,7 @@ def build_queries(resume_text: str, city: str) -> tuple[list[str], bool, list[st
   Each string is a "what" keyword for a job search API (2-4 words max).
   Base ALL 6 on the person's actual field of study and skills — do NOT restrict to IT.
   Examples for various profiles:
-    IT student:         "junior python developer", "junior data analyst",     "data analyst intern"
+    IT student:         "junior python developer", "intern python developer", "junior data analyst",     "data analyst intern"
     Marketing student:  "junior marketing specialist", "junior copywriter",   "marketing intern"
     Finance student:    "junior financial analyst", "junior accountant",      "stażysta analityk"
     Design student:     "junior graphic designer", "junior ux designer",      "praktykant grafika"
@@ -144,7 +157,7 @@ def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
                 link = offer.get("redirect_url", "")
                 if not link:
                     continue
-                description = offer.get("description") or ""
+                description = _strip_html(offer.get("description") or "")
                 jobs.append({
                     "title": title,
                     "company": (offer.get("company") or {}).get("display_name", "Unknown"),
@@ -266,7 +279,7 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
             if not link or link in seen_links:
                 continue
             seen_links.add(link)
-            description = offer.get("description") or ""
+            description = _strip_html(offer.get("description") or "")
             jobs.append({
                 "title": title,
                 "company": offer.get("company_name", "Unknown"),
