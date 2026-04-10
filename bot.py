@@ -127,13 +127,24 @@ async def _run_score(msg, chat_id: int, lang_code: str) -> None:
         for job_id, title, company, _link, tech_stack, description in pending
     ])
 
-    high_count = len(get_jobs_to_apply(chat_id, min_score=HIGH_SCORE_ALERT))
-    keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton(t(lang_code, "btn_view_jobs"), callback_data="action:jobs"),
-    ]])
+    good_count = count_jobs_to_apply(chat_id, min_score=DEFAULT_MIN_SCORE)
+    high_count = count_jobs_to_apply(chat_id, min_score=HIGH_SCORE_ALERT)
+
     summary = t(lang_code, "score_done", total=total)
-    if high_count:
+    if good_count == 0:
+        summary += "\n\n" + t(lang_code, "score_no_good_jobs")
+    elif high_count:
         summary += "\n\n" + t(lang_code, "score_high_alert", high=high_count)
+
+    if WEBAPP_URL and good_count > 0:
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton(t(lang_code, "webapp_btn"), web_app=WebAppInfo(url=WEBAPP_URL))
+        ]])
+    else:
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton(t(lang_code, "btn_view_jobs"), callback_data="action:jobs"),
+        ]]) if good_count > 0 else None
+
     await status_msg.edit_text(summary, reply_markup=keyboard)
 
 
@@ -482,7 +493,13 @@ async def on_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = get_user_lang(chat_id)
     action = query.data.split(":", 1)[1]
     if action == "jobs":
-        await _send_jobs(query.message, chat_id, DEFAULT_MIN_SCORE, lang_code)
+        if WEBAPP_URL:
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton(t(lang_code, "webapp_btn"), web_app=WebAppInfo(url=WEBAPP_URL))
+            ]])
+            await query.message.reply_text(t(lang_code, "webapp_open"), reply_markup=keyboard)
+        else:
+            await _send_jobs(query.message, chat_id, DEFAULT_MIN_SCORE, lang_code)
     elif action == "score":
         await _run_score(query.message, chat_id, lang_code)
     elif action == "rescore":
