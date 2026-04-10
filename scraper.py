@@ -397,14 +397,22 @@ def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], boo
     raw.extend(_fetch_rocketjobs(city))
     raw.extend(_fetch_remotive(remotive_categories))
 
-    # Deduplicate by link
-    seen = set()
+    # Deduplicate by link first, then by (title, company) to catch
+    # same job appearing on JustJoin + RocketJobs (same backend, different domains)
+    # or Adzuna returning the same job across multiple queries with different redirect URLs.
+    seen_links: set[str] = set()
+    seen_pairs: set[tuple] = set()
     jobs = []
     for job in raw:
         link = job["link"]
-        if link and link not in seen:
-            seen.add(link)
-            jobs.append(job)
+        pair = (job["title"].lower().strip(), job["company"].lower().strip())
+        if not link:
+            continue
+        if link in seen_links or pair in seen_pairs:
+            continue
+        seen_links.add(link)
+        seen_pairs.add(pair)
+        jobs.append(job)
 
-    logger.info("Итого уникальных вакансий: %d", len(jobs))
+    logger.info("Итого уникальных вакансий: %d (из %d сырых)", len(jobs), len(raw))
     return jobs, used_fallback

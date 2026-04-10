@@ -79,6 +79,25 @@ CREATE TABLE IF NOT EXISTS user_settings (
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS last_scrape_at TIMESTAMPTZ",
             ]:
                 cur.execute(ddl)
+            # One-time cleanup: remove pending duplicate jobs with same (title, company, chat_id),
+            # keeping only the highest-score row (or highest id if scores are equal).
+            cur.execute("""
+                DELETE FROM jobs
+                WHERE id IN (
+                    SELECT id FROM (
+                        SELECT id,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY chat_id, LOWER(title), LOWER(company)
+                                   ORDER BY COALESCE(score, 0) DESC, id DESC
+                               ) AS rn
+                        FROM jobs
+                        WHERE applied = 0
+                    ) ranked
+                    WHERE rn > 1
+                )
+            """)
+            if cur.rowcount:
+                logger.info("Schema cleanup: removed %d duplicate pending jobs", cur.rowcount)
         conn.commit()
 
 
