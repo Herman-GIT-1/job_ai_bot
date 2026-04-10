@@ -165,6 +165,16 @@ def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
     return jobs
 
 
+_JJIT_CITY_MAP = {
+    "warszawa": "warsaw",
+    "krakow": "krakow",
+    "wroclaw": "wroclaw",
+    "poznan": "poznan",
+    "gdansk": "gdansk",
+    "lodz": "lodz",
+}
+
+
 def _city_to_nfj_slug(city: str) -> str:
     """Warsaw / Warszawa / Kraków → warszawa / krakow for NoFluffJobs criteria."""
     slug = city.lower().split(",")[0].strip()
@@ -347,16 +357,18 @@ def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str) ->
 
 def _fetch_justjoin(city: str) -> list[dict]:
     """JustJoin.it — внутренний Next.js API, авторизация не нужна."""
-    city_slug = _city_to_nfj_slug(city)
+    slug = _city_to_nfj_slug(city)
+    city_param = _JJIT_CITY_MAP.get(slug, slug)
     logger.info("[JustJoin] Ищу junior/intern в %s...", city)
-    return _fetch_jjit_api(JUSTJOIN_API, city_slug, "JustJoin", "https://justjoin.it/job-offer/")
+    return _fetch_jjit_api(JUSTJOIN_API, city_param, "JustJoin", "https://justjoin.it/job-offer/")
 
 
 def _fetch_rocketjobs(city: str) -> list[dict]:
     """RocketJobs — тот же API-бэкенд что и JustJoin (одна компания)."""
-    city_slug = _city_to_nfj_slug(city)
+    slug = _city_to_nfj_slug(city)
+    city_param = _JJIT_CITY_MAP.get(slug, slug)
     logger.info("[RocketJobs] Ищу junior/intern в %s...", city)
-    return _fetch_jjit_api(ROCKETJOBS_API, city_slug, "RocketJobs", "https://rocketjobs.pl/job-offer/")
+    return _fetch_jjit_api(ROCKETJOBS_API, city_param, "RocketJobs", "https://rocketjobs.pl/job-offer/")
 
 
 def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], bool]:
