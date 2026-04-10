@@ -243,7 +243,8 @@ body {
 
 <!-- Tab bar (shown only in list view) -->
 <div class="tabs" id="tab-bar" style="display:none">
-  <button class="tab active" data-tab="saved"       onclick="switchTab('saved')">💾<br>Saved</button>
+  <button class="tab active" data-tab="saved"        onclick="switchTab('saved')">💾<br>Saved</button>
+  <button class="tab"        data-tab="applied"      onclick="switchTab('applied')">✅<br>Applied</button>
   <button class="tab"        data-tab="interviewing" onclick="switchTab('interviewing')">📞<br>Interview</button>
   <button class="tab"        data-tab="rejected"     onclick="switchTab('rejected')">❌<br>Rejected</button>
   <button class="tab"        data-tab="offer"        onclick="switchTab('offer')">🎉<br>Offers</button>
@@ -395,7 +396,8 @@ async function loadTab(tab) {
 // ── Tab renderers ──────────────────────────────────────────────────────────
 const TAB_EMPTY = {
   saved:        ['📋', 'Nothing saved yet', 'Swipe right or press Save to add vacancies here.'],
-  interviewing: ['📞', 'No interviews yet', 'Move a saved vacancy to Interview to track it here.'],
+  applied:      ['✅', 'No applications yet', 'Press Apply on a saved vacancy to track it here.'],
+  interviewing: ['📞', 'No interviews yet', 'Move an applied vacancy to Interview to track it here.'],
   rejected:     ['😔', 'No rejections', 'Rejected vacancies will appear here.'],
   offer:        ['🎉', 'No offers yet', 'Mark a vacancy as Offer when you get one!'],
 };
@@ -434,9 +436,15 @@ function buildItemActions(tab, job) {
   const link = esc(job.link);
   if (tab === 'saved') {
     return `
-      <button class="item-btn item-btn-apply"     onclick="applyJob(${id},'${link}',this)">✅ Apply</button>
+      <button class="item-btn item-btn-apply"  onclick="applyJob(${id},'${link}',this)">✅ Apply</button>
+      <button class="item-btn item-btn-reject" onclick="moveStatus(${id},'rejected',this)">❌ Skip</button>
+    `;
+  }
+  if (tab === 'applied') {
+    return `
+      <button class="item-btn item-btn-apply"     onclick="applyJob(${id},'${link}',this)">↗ Open</button>
       <button class="item-btn item-btn-interview" onclick="moveStatus(${id},'interviewing',this)">📞 Interview</button>
-      <button class="item-btn item-btn-reject"    onclick="moveStatus(${id},'rejected',this)">❌ Skip</button>
+      <button class="item-btn item-btn-reject"    onclick="moveStatus(${id},'rejected',this)">❌ Rejected</button>
     `;
   }
   if (tab === 'interviewing') {
