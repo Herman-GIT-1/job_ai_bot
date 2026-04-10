@@ -30,37 +30,27 @@ def allowed(func):
 
 ---
 
-### P2 · Score explanation (объяснение скора)
+### P2 · Score explanation (объяснение скора) ✓ Done
 
-Сейчас бот показывает `7/10` без объяснений — пользователь не понимает что улучшить.
-
-- **`ai_score.py`**: `max_tokens=5 → 80`, промт возвращает JSON `{"score": 7, "reason": "strong Python match, missing Docker"}`
-- **`database.py`**: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS score_reason TEXT`
-- **`database.py`**: обновить `update_job(job_id, chat_id, score, letter, reason)` 
-- **`bot.py`**: показывать reason курсивом под скором в карточке вакансии
-
-Ограничение: пока отложено, чтобы не увеличивать расход Haiku-токенов.
+- **`ai_score.py`**: `max_tokens=5 → 80`; промт возвращает JSON `{"score": 7, "reason": "..."}`;
+  `evaluate()` теперь возвращает `tuple[int, str]`
+- **`database.py`**: `score_reason TEXT` колонка; `update_job()` принимает `reason` param
+- **`bot.py`**: распаковка `(score, reason)`; reason отображается курсивом под score в карточке
 
 ---
 
-### P3 · Database backup
+### P3 · Database backup ✓ Done
 
-Railway free PostgreSQL не делает автобэкапов.
-
-- Новый файл **`backup.py`** (≤ 30 строк):
-  ```python
-  result = subprocess.run(["pg_dump", DATABASE_URL], capture_output=True)
-  # gzip + send_document(ADMIN_CHAT_ID, filename="backup_YYYY-MM-DD.sql.gz")
-  ```
-- Запуск: Railway cron job в 3:00 UTC ежедневно (отдельно от bot worker)
+- **`backup.py`**: `pg_dump` → gzip → `send_document(ADMIN_CHAT_ID)`; запускается как скрипт
+- **`bot.py`**: команда `/backup` (admin_only) — ручной запуск резервной копии
+- Для автоматического запуска: Railway cron job → `python backup.py` в 3:00 UTC
 
 ---
 
-### P4 · Error monitoring → Admin chat
+### P4 · Error monitoring → Admin chat ✓ Done
 
-- Добавить `error_handler` в **`bot.py`** (PTB `application.add_error_handler`)
-- Все необработанные исключения слать в `ADMIN_CHAT_ID` с трейсбеком
-- Без внешних сервисов (Sentry платный)
+- `_error_handler` в **`bot.py`** пересылает трейсбек в `ADMIN_CHAT_ID` (truncated 3000 chars)
+- Benign ошибки (Conflict, NetworkError) только логируются, не пересылаются
 
 ---
 
@@ -221,6 +211,9 @@ Mini App уже есть (swipe-карточки, `applied=3`). Следующи
 - `applied_at TIMESTAMPTZ`, `job_status`, `created_at` колонки в `jobs`
 - `last_scrape_at` в `user_settings`
 - Job expiry cleanup: `delete_expired_jobs()` + PTB daily job queue (P8)
+- Score explanation: `evaluate()` → `(score, reason)`, reason в карточке курсивом (P2)
+- `/backup` admin-команда: pg_dump → gzip → Telegram document (P3)
+- Error monitoring: unhandled exceptions → ADMIN_CHAT_ID с трейсбеком (P4)
 - **Telegram Mini App** (`webapp.py` + `static/index.html`):
   - FastAPI сервер запускается в daemon-треде внутри одного Railway-процесса
   - HMAC-SHA256 аутентификация через Telegram initData
