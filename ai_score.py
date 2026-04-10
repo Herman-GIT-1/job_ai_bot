@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import time
@@ -14,7 +15,8 @@ logger = logging.getLogger(__name__)
 client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 
-def evaluate(job, resume=None):
+def evaluate(job, resume=None) -> tuple[int, str]:
+    """Return (score 0–10, reason str). On error returns (5, "")."""
     if resume is None:
         resume = load_resume()
 
@@ -40,7 +42,8 @@ Evaluate this specific candidate against this specific job:
 4. Education fit
 5. Growth potential given candidate's actual trajectory
 
-Return ONLY a single integer 0–10. No explanation."""
+Return ONLY valid JSON on one line, no other text:
+{{"score": N, "reason": "up to 12 words explaining the main match or gap"}}"""
 
     job_block = (
         f"## Job:\nTitle: {job['title']}\nCompany: {job.get('company', '')}"
@@ -53,7 +56,7 @@ Return ONLY a single integer 0–10. No explanation."""
         try:
             response = client.messages.create(
                 model=MODEL_SCORING,
-                max_tokens=5,
+                max_tokens=80,
                 messages=[{
                     "role": "user",
                     "content": [
@@ -63,7 +66,9 @@ Return ONLY a single integer 0–10. No explanation."""
                     ],
                 }],
             )
-            return int(response.content[0].text.strip())
+            raw = response.content[0].text.strip()
+            data = json.loads(raw)
+            return int(data["score"]), str(data.get("reason", ""))
         except Exception as e:
             last_err = e
             if attempt < 2:
@@ -71,4 +76,4 @@ Return ONLY a single integer 0–10. No explanation."""
                 time.sleep(2)
 
     logger.error("Score error after 3 attempts: %s", last_err)
-    return 5   # neutral default — never crash the pipeline
+    return 5, ""   # neutral default — never crash the pipeline

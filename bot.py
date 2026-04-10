@@ -96,12 +96,12 @@ async def _run_score(msg, chat_id: int, lang_code: str) -> None:
         nonlocal done
         async with sem:
             try:
-                score = await asyncio.wait_for(
+                score, reason = await asyncio.wait_for(
                     loop.run_in_executor(None, lambda j=job, r=resume: evaluate(j, resume=r)),
                     timeout=30.0,
                 )
             except asyncio.TimeoutError:
-                score = 5
+                score, reason = 5, ""
             letter = ""
             if score >= LETTER_MIN_SCORE:
                 try:
@@ -113,7 +113,7 @@ async def _run_score(msg, chat_id: int, lang_code: str) -> None:
                     )
                 except asyncio.TimeoutError:
                     letter = "Cover letter generation timed out."
-            update_job(job_id, chat_id, score, letter)
+            update_job(job_id, chat_id, score, letter, reason)
         done += 1
         if done % 5 == 0 or done == total:
             await status_msg.edit_text(t(lang_code, "score_progress", done=done, total=total))
@@ -164,6 +164,7 @@ async def _send_jobs(msg, chat_id: int, min_score: int, lang_code: str,
     for row in vacancies:
         job_id, title, company, _link, score, description, _cover_letter = row[:7]
         salary_min, salary_max, salary_currency = row[7], row[8], row[9]
+        score_reason = row[10] if len(row) > 10 else None
         desc = (description or "").strip()
         preview = desc[:280] + "…" if len(desc) > 280 else desc
 
@@ -172,9 +173,11 @@ async def _send_jobs(msg, chat_id: int, min_score: int, lang_code: str,
             cur = salary_currency or "PLN"
             salary_line = f"\n💰 {salary_min:,}–{salary_max:,} {cur}" if salary_max else f"\n💰 from {salary_min:,} {cur}"
 
+        reason_line = f"\n<i>{score_reason}</i>" if score_reason else ""
+
         text = (
             f"<b>{title}</b>\n"
-            f"🏢 {company}  •  ⭐ {score}/10{salary_line}\n\n"
+            f"🏢 {company}  •  ⭐ {score}/10{salary_line}{reason_line}\n\n"
             f"{preview}"
         )
         keyboard = InlineKeyboardMarkup([[
