@@ -20,7 +20,7 @@ MODEL_FEEDBACK      = "claude-sonnet-4-6"           # resume feedback
 
 # ── Scoring thresholds ─────────────────────────────────────────────────────────
 
-DEFAULT_MIN_SCORE   = 7    # jobs shown in /jobs by default
+DEFAULT_MIN_SCORE   = 6    # jobs shown in /jobs by default
 HIGH_SCORE_ALERT    = 8    # threshold for "X high-score jobs" alert after scoring
 LETTER_MIN_SCORE    = 7    # minimum score to generate a cover letter
 
