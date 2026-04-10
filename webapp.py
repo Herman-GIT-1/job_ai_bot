@@ -8,6 +8,7 @@ Routes:
     POST /api/apply    — mark job as applied    (applied=1)
 """
 
+import asyncio
 import hashlib
 import hmac
 import json
@@ -15,13 +16,15 @@ import logging
 import os
 from urllib.parse import parse_qsl
 
+import requests as _requests
+
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
 from config import DEFAULT_MIN_SCORE
 from database import (
     get_jobs_to_apply, get_interested_jobs, mark_applied, mark_interested,
-    get_jobs_by_status, move_to_status,
+    get_jobs_by_status, move_to_status, get_cover_letter,
 )
 
 logger = logging.getLogger(__name__)
@@ -143,6 +146,27 @@ async def api_tracker(status: str = Query(...), chat_id: int = Depends(_auth)):
             "job_status": job_status or "",
         })
     return {"jobs": jobs}
+
+
+@app.post("/api/letter")
+async def api_letter(request: Request, chat_id: int = Depends(_auth)):
+    body = await request.json()
+    row = get_cover_letter(int(body["job_id"]), chat_id)
+    if not row or not row[2]:
+        raise HTTPException(status_code=404, detail="Cover letter not found for this job")
+    title, company, letter = row
+    text = f"📄 *{title}* — {company}\n\n{letter}"
+
+    def _send():
+        _requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+            timeout=10,
+        )
+
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _send)
+    return {"ok": True}
 
 
 @app.post("/api/status")

@@ -224,6 +224,8 @@ body {
 .state-emoji { font-size: 52px; margin-bottom: 14px; }
 .state h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
 .state p  { font-size: 15px; color: var(--tg-theme-hint-color, #8e8e93); line-height: 1.5; }
+
+.item-btn-letter { background: #f0eaff; color: #6c35de; }
 </style>
 </head>
 <body>
@@ -264,6 +266,7 @@ body {
   <button class="btn btn-list" onclick="openMyList()">📋<br>My list</button>
   <button class="btn btn-save" onclick="doAction('save')">💾<br>Save</button>
 </div>
+
 
 <script>
 const tg = window.Telegram.WebApp;
@@ -435,8 +438,12 @@ function buildItemActions(tab, job) {
   const id   = job.id;
   const link = esc(job.link);
   if (tab === 'saved') {
+    const letterBtn = job.cover_letter
+      ? `<button class="item-btn item-btn-letter" onclick="sendLetter(${id},this)">📄 Letter</button>`
+      : '';
     return `
       <button class="item-btn item-btn-apply"  onclick="applyJob(${id},'${link}',this)">✅ Apply</button>
+      ${letterBtn}
       <button class="item-btn item-btn-reject" onclick="moveStatus(${id},'rejected',this)">❌ Skip</button>
     `;
   }
@@ -475,6 +482,20 @@ async function applyJob(jobId, link, btn) {
   apiFetch('/api/apply', 'POST', { job_id: jobId }).catch(console.error);
   if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
   tg.openLink(link);
+}
+
+async function sendLetter(jobId, btn) {
+  btn.disabled = true;
+  btn.textContent = '⏳';
+  try {
+    await apiFetch('/api/letter', 'POST', { job_id: jobId });
+    btn.textContent = 'Sent ✓';
+    if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = '📄 Letter';
+    console.error(e);
+  }
 }
 
 async function moveStatus(jobId, status, btn) {
