@@ -165,15 +165,6 @@ def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
     return jobs
 
 
-_JJIT_CITY_MAP = {
-    "warszawa": "warsaw",
-    "krakow": "krakow",
-    "wroclaw": "wroclaw",
-    "poznan": "poznan",
-    "gdansk": "gdansk",
-    "lodz": "lodz",
-}
-
 
 def _city_to_nfj_slug(city: str) -> str:
     """Warsaw / Warszawa / Kraków → warszawa / krakow for NoFluffJobs criteria."""
@@ -295,17 +286,18 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
 
 
 def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str) -> list[dict]:
-    """Общий fetcher для justjoin.it и rocketjobs.pl — внутренний Next.js API."""
+    """Общий fetcher для justjoin.it и rocketjobs.pl — внутренний Next.js API.
+    Город не передаём в API (city-фильтр ненадёжен), фильтруем клиентски.
+    """
     jobs = []
     seen_slugs: set[str] = set()
 
-    for page in range(1, 6):  # максимум 250 вакансий
+    for page in range(1, 11):  # максимум 500 вакансий
         try:
             r = requests.get(
                 api_url,
                 params={
                     "experienceLevel[]": ["junior", "intern"],
-                    "city": city_slug,
                     "limit": 50,
                     "page": page,
                 },
@@ -328,8 +320,15 @@ def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str) ->
             title = item.get("title", "")
             if any(w in title.lower() for w in _EXCLUDED_TITLE_KEYWORDS):
                 continue
-            seen_slugs.add(slug)
 
+            # Принимаем вакансию если она remote ИЛИ в целевом городе
+            is_remote = item.get("workplaceType") == "remote"
+            offer_cities = [_city_to_nfj_slug(item.get("city") or "")]
+            offer_cities += [_city_to_nfj_slug(loc.get("city", "")) for loc in (item.get("locations") or [])]
+            if not is_remote and city_slug not in offer_cities:
+                continue
+
+            seen_slugs.add(slug)
             emp = (item.get("employmentTypes") or [{}])[0]
             skills = [s["name"] for s in (item.get("requiredSkills") or [])]
             description = f"Required skills: {', '.join(skills)}." if skills else ""
@@ -339,7 +338,7 @@ def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str) ->
                 "company": item.get("companyName", "Unknown"),
                 "link": f"{base_url}{slug}",
                 "tech_stack": ", ".join(skills[:6]),
-                "remote": item.get("workplaceType") == "remote",
+                "remote": is_remote,
                 "city": item.get("city") or city_slug,
                 "description": description,
                 "source": source,
@@ -357,18 +356,14 @@ def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str) ->
 
 def _fetch_justjoin(city: str) -> list[dict]:
     """JustJoin.it — внутренний Next.js API, авторизация не нужна."""
-    slug = _city_to_nfj_slug(city)
-    city_param = _JJIT_CITY_MAP.get(slug, slug)
     logger.info("[JustJoin] Ищу junior/intern в %s...", city)
-    return _fetch_jjit_api(JUSTJOIN_API, city_param, "JustJoin", "https://justjoin.it/job-offer/")
+    return _fetch_jjit_api(JUSTJOIN_API, _city_to_nfj_slug(city), "JustJoin", "https://justjoin.it/job-offer/")
 
 
 def _fetch_rocketjobs(city: str) -> list[dict]:
     """RocketJobs — тот же API-бэкенд что и JustJoin (одна компания)."""
-    slug = _city_to_nfj_slug(city)
-    city_param = _JJIT_CITY_MAP.get(slug, slug)
     logger.info("[RocketJobs] Ищу junior/intern в %s...", city)
-    return _fetch_jjit_api(ROCKETJOBS_API, city_param, "RocketJobs", "https://rocketjobs.pl/job-offer/")
+    return _fetch_jjit_api(ROCKETJOBS_API, _city_to_nfj_slug(city), "RocketJobs", "https://rocketjobs.pl/job-offer/")
 
 
 def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], bool]:
