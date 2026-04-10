@@ -24,6 +24,7 @@ from resume_parser import parse_resume, save_resume, load_resume, validate
 from ai_score import evaluate
 from cover_letter import generate_letter
 from resume_feedback import analyze_resume
+from backup import send_backup
 from strings import t
 
 logger = logging.getLogger(__name__)
@@ -435,6 +436,14 @@ async def cmd_tracker(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @admin_only
+async def cmd_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    msg = await update.message.reply_text(t(lang_code, "backup_running"))
+    await send_backup(context.bot, ADMIN_CHAT_ID)
+    await msg.edit_text(t(lang_code, "backup_done"))
+
+
+@admin_only
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(t(_lang(update), "stop_msg"))
     await context.application.stop()
@@ -660,6 +669,7 @@ def main():
     app.add_handler(CommandHandler("tracker",  cmd_tracker))
     app.add_handler(CommandHandler("feedback", cmd_feedback))
     app.add_handler(CommandHandler("stats",    cmd_stats))
+    app.add_handler(CommandHandler("backup",   cmd_backup))
     app.add_handler(CommandHandler("stop",     cmd_stop))
     app.add_handler(scrape_conv)
     app.add_handler(MessageHandler(filters.Document.ALL, cmd_resume_upload))
