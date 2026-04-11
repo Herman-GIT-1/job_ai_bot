@@ -71,7 +71,7 @@ Remotive    ─┘                      ↓
 ```
 
 - `/scrape` uses Claude to generate 5 personalised search queries from the resume, queries each job source, filters by seniority (junior/intern), and saves results to PostgreSQL
-- `/score` evaluates each new vacancy (0–10) and generates a cover letter for jobs scoring ≥ 7
-- `/jobs` displays vacancies with score ≥ 7 that have not yet been applied to or skipped, with pagination
+- `/score` evaluates each new vacancy (0–10) and generates a cover letter for jobs scoring ≥ 6
+- `/jobs` displays vacancies with score ≥ 6 that have not yet been applied to or skipped, with pagination
 - The bot supports **multiple users** — all data is scoped by `chat_id`
 - Deployed on **Railway** with PostgreSQL; the Mini App (swipe UI) runs in the same process via FastAPI

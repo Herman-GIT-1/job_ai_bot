@@ -418,8 +418,8 @@ def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], boo
     raw = []
     raw.extend(_fetch_adzuna(queries, city))
     raw.extend(_fetch_nofluffjobs(city))
-    raw.extend(_fetch_justjoin(city))
-    raw.extend(_fetch_rocketjobs(city))
+    # raw.extend(_fetch_justjoin(city))
+    # raw.extend(_fetch_rocketjobs(city))
     raw.extend(_fetch_remotive(remotive_categories))
 
     # Deduplicate by link first, then by (title, company) to catch
