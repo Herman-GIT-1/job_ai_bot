@@ -6,7 +6,8 @@ import datetime
 import functools
 import logging
 import os
-from telegram import (Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo)
+from telegram import (Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo,
+                       MenuButtonWebApp, MenuButtonDefault)
 from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
                           MessageHandler, ConversationHandler, filters, ContextTypes)
 
@@ -615,6 +616,12 @@ async def _set_commands(app: Application) -> None:
         ("help",     "Command reference"),
         ("language", "Change language"),
     ])
+    if WEBAPP_URL:
+        await app.bot.set_my_default_menu_button(
+            menu_button=MenuButtonWebApp(text="My Jobs", web_app=WebAppInfo(url=WEBAPP_URL))
+        )
+    else:
+        await app.bot.set_my_default_menu_button(menu_button=MenuButtonDefault())
 
 
 async def _daily_cleanup(context) -> None:
