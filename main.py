@@ -90,18 +90,18 @@ def main() -> None:
     args = parser.parse_args()
 
     if not any([args.scrape, args.score, args.bot, args.all]):
-            parser.print_help()
-            return
+        parser.print_help()
+        return
 
     if args.bot:
-            run_bot()
-            return
+        run_bot()
+        return
 
     if args.all or args.scrape:
-            run_scrape(args.city)
+        run_scrape(args.city)
     if args.all or args.score:
-            run_score()
+        run_score()
 
 
-    if __name__ == "__main__":
-        main()
+if __name__ == "__main__":
+    main()
