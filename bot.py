@@ -617,11 +617,11 @@ async def _set_commands(app: Application) -> None:
         ("language", "Change language"),
     ])
     if WEBAPP_URL:
-        await app.bot.set_my_default_menu_button(
+        await app.bot.set_chat_menu_button(
             menu_button=MenuButtonWebApp(text="My Jobs", web_app=WebAppInfo(url=WEBAPP_URL))
         )
     else:
-        await app.bot.set_my_default_menu_button(menu_button=MenuButtonDefault())
+        await app.bot.set_chat_menu_button(menu_button=MenuButtonDefault())
 
 
 async def _daily_cleanup(context) -> None:
@@ -636,6 +636,7 @@ def main():
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     app = Application.builder().token(TOKEN).post_init(_set_commands).build()
     app.job_queue.run_daily(
