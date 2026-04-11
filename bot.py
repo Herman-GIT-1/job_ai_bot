@@ -25,6 +25,7 @@ from resume_parser import parse_resume, save_resume, load_resume, validate
 from ai_score import evaluate
 from cover_letter import generate_letter
 from resume_feedback import analyze_resume
+from backup import send_backup
 from strings import t
 
 logger = logging.getLogger(__name__)
@@ -97,12 +98,12 @@ async def _run_score(msg, chat_id: int, lang_code: str) -> None:
         nonlocal done
         async with sem:
             try:
-                score = await asyncio.wait_for(
+                score, reason = await asyncio.wait_for(
                     loop.run_in_executor(None, lambda j=job, r=resume: evaluate(j, resume=r)),
                     timeout=30.0,
                 )
             except asyncio.TimeoutError:
-                score = 5
+                score, reason = 5, ""
             letter = ""
             if score >= LETTER_MIN_SCORE:
                 try:
@@ -114,7 +115,7 @@ async def _run_score(msg, chat_id: int, lang_code: str) -> None:
                     )
                 except asyncio.TimeoutError:
                     letter = "Cover letter generation timed out."
-            update_job(job_id, chat_id, score, letter)
+            update_job(job_id, chat_id, score, letter, reason)
         done += 1
         if done % 5 == 0 or done == total:
             await status_msg.edit_text(t(lang_code, "score_progress", done=done, total=total))
@@ -165,6 +166,7 @@ async def _send_jobs(msg, chat_id: int, min_score: int, lang_code: str,
     for row in vacancies:
         job_id, title, company, _link, score, description, _cover_letter = row[:7]
         salary_min, salary_max, salary_currency = row[7], row[8], row[9]
+        score_reason = row[10] if len(row) > 10 else None
         desc = (description or "").strip()
         preview = desc[:280] + "…" if len(desc) > 280 else desc
 
@@ -173,9 +175,11 @@ async def _send_jobs(msg, chat_id: int, min_score: int, lang_code: str,
             cur = salary_currency or "PLN"
             salary_line = f"\n💰 {salary_min:,}–{salary_max:,} {cur}" if salary_max else f"\n💰 from {salary_min:,} {cur}"
 
+        reason_line = f"\n<i>{score_reason}</i>" if score_reason else ""
+
         text = (
             f"<b>{title}</b>\n"
-            f"🏢 {company}  •  ⭐ {score}/10{salary_line}\n\n"
+            f"🏢 {company}  •  ⭐ {score}/10{salary_line}{reason_line}\n\n"
             f"{preview}"
         )
         keyboard = InlineKeyboardMarkup([[
@@ -433,6 +437,14 @@ async def cmd_tracker(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @admin_only
+async def cmd_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    msg = await update.message.reply_text(t(lang_code, "backup_running"))
+    await send_backup(context.bot, ADMIN_CHAT_ID)
+    await msg.edit_text(t(lang_code, "backup_done"))
+
+
+@admin_only
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(t(_lang(update), "stop_msg"))
     await context.application.stop()
@@ -630,6 +642,10 @@ async def _daily_cleanup(context) -> None:
         logger.info("Deleted %d expired jobs (>%d days old, unscored)", deleted, JOB_EXPIRY_DAYS)
 
 
+async def _daily_backup(context) -> None:
+    await send_backup(context.bot, ADMIN_CHAT_ID)
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
@@ -642,6 +658,10 @@ def main():
     app.job_queue.run_daily(
         _daily_cleanup,
         time=datetime.time(hour=4, tzinfo=datetime.timezone.utc),
+    )
+    app.job_queue.run_daily(
+        _daily_backup,
+        time=datetime.time(hour=3, tzinfo=datetime.timezone.utc),
     )
 
     scrape_conv = ConversationHandler(
@@ -665,6 +685,7 @@ def main():
     app.add_handler(CommandHandler("tracker",  cmd_tracker))
     app.add_handler(CommandHandler("feedback", cmd_feedback))
     app.add_handler(CommandHandler("stats",    cmd_stats))
+    app.add_handler(CommandHandler("backup",   cmd_backup))
     app.add_handler(CommandHandler("stop",     cmd_stop))
     app.add_handler(scrape_conv)
     app.add_handler(MessageHandler(filters.Document.ALL, cmd_resume_upload))
@@ -680,6 +701,7 @@ def main():
     app.add_handler(CallbackQueryHandler(on_letter,    pattern=r"^letter:"))
 
     async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        import traceback
         from telegram.error import Conflict, NetworkError
         if isinstance(context.error, Conflict):
             logger.warning("Conflict: another bot instance is running. Retrying…")
@@ -688,6 +710,19 @@ def main():
             logger.warning("NetworkError: %s", context.error)
             return
         logger.error("Unhandled error", exc_info=context.error)
+        try:
+            tb = "".join(traceback.format_exception(
+                type(context.error), context.error, context.error.__traceback__
+            ))
+            user_info = ""
+            if isinstance(update, Update) and update.effective_chat:
+                user_info = f"chat_id={update.effective_chat.id} "
+            text = f"⚠️ Bot error {user_info}\n<pre>{tb[-3000:]}</pre>"
+            await context.bot.send_message(
+                chat_id=ADMIN_CHAT_ID, text=text, parse_mode="HTML"
+            )
+        except Exception:
+            pass  # never let the error handler itself crash the bot
 
     app.add_error_handler(_error_handler)
     logger.info("Bot started.")

@@ -129,6 +129,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "webapp_open": "Tap the button below to browse jobs with swipe cards:",
         "webapp_not_configured": "Mini App is not configured yet. Use /jobs to see jobs in chat.",
         "interested_msg": "Saved to your list ✅",
+        # --- backup ---
+        "backup_running": "Creating backup…",
+        "backup_done": "Backup sent ✅",
         # --- misc ---
         "access_denied": "Access denied.",
         "stop_msg": "Stopping bot…",
@@ -247,6 +250,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "webapp_open": "Нажми кнопку ниже, чтобы листать вакансии карточками:",
         "webapp_not_configured": "Mini App ещё не настроен. Используй /jobs для просмотра в чате.",
         "interested_msg": "Сохранено в список ✅",
+        # --- backup ---
+        "backup_running": "Создаю резервную копию…",
+        "backup_done": "Резервная копия отправлена ✅",
         "access_denied": "Доступ запрещён.",
         "stop_msg": "Останавливаю бота…",
     },
@@ -364,6 +370,9 @@ TEXTS: dict[str, dict[str, str]] = {
         "webapp_open": "Kliknij przycisk poniżej, aby przeglądać oferty kartami:",
         "webapp_not_configured": "Mini App nie jest jeszcze skonfigurowany. Użyj /jobs aby zobaczyć oferty w czacie.",
         "interested_msg": "Zapisano do listy ✅",
+        # --- backup ---
+        "backup_running": "Tworzę kopię zapasową…",
+        "backup_done": "Kopia zapasowa wysłana ✅",
         "access_denied": "Brak dostępu.",
         "stop_msg": "Zatrzymuję bota…",
     },

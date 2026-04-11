@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS resume_text TEXT",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS last_scrape_at TIMESTAMPTZ",
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS score_reason TEXT",
             ]:
                 cur.execute(ddl)
             # One-time cleanup: remove pending duplicate jobs with same (title, company, chat_id),
@@ -225,7 +226,7 @@ def get_jobs_to_apply(
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, title, company, link, score, description, cover_letter,"
-                "       salary_min, salary_max, salary_currency"
+                "       salary_min, salary_max, salary_currency, score_reason"
                 " FROM jobs WHERE chat_id = %s AND applied = 0 AND score >= %s"
                 " ORDER BY score DESC"
                 " LIMIT %s OFFSET %s",
@@ -344,13 +345,13 @@ def get_applied_jobs(chat_id: int) -> list:
             return cur.fetchall()
 
 
-def update_job(job_id: int, chat_id: int, score: int, letter: str) -> None:
+def update_job(job_id: int, chat_id: int, score: int, letter: str, reason: str = "") -> None:
     with _get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE jobs SET score = %s, cover_letter = %s"
+                "UPDATE jobs SET score = %s, cover_letter = %s, score_reason = %s"
                 " WHERE id = %s AND chat_id = %s",
-                (score, letter, job_id, chat_id),
+                (score, letter, reason or None, job_id, chat_id),
             )
         conn.commit()
 
