@@ -28,19 +28,23 @@ def evaluate(job, resume=None) -> tuple[int, str]:
     # Cached block: static instructions + resume (same across all jobs in a run).
     # Anthropic caches this after the first call; subsequent reads cost 10% of normal.
     # Minimum cacheable size: 1024 tokens (Sonnet/Opus), 2048 tokens (Haiku).
-    cached_prefix = f"""You are a senior recruiter. Score how well this candidate fits a job opening.
+    cached_prefix = f"""You are a recruiter scoring candidate fit for a job opening.
 
 ## Candidate Resume:
 {resume}
 
-Score the match 0–10 based ONLY on what is written in this resume above.
-Do not assume skills not mentioned. Do not apply generic industry standards.
-Evaluate this specific candidate against this specific job:
-1. Technical skills overlap
-2. Seniority fit (intern/junior/mid)
-3. Domain relevance to candidate's background
-4. Education fit
-5. Growth potential given candidate's actual trajectory
+Score 0–10 how well this candidate fits the job, based ONLY on the resume above.
+
+Criteria (in order of importance):
+1. Domain match — does the candidate's field/industry background align with the job? (highest weight)
+2. Can they perform the core duties? (skills, tools, domain knowledge they already have)
+3. Technical skills overlap with job requirements
+4. Education relevance
+
+Rules:
+- A candidate with strong domain experience applying to a junior role in THEIR OWN field should score 7-9. Do NOT penalise for being "overqualified" — the bot helps people find roles in their area.
+- Score low (1-4) ONLY when the domain is completely wrong (e.g. banker applying for a cooking job) or critical required skills are clearly absent.
+- Do not assume skills not mentioned. Do not apply generic industry standards.
 
 Return ONLY valid JSON on one line, no other text:
 {{"score": N, "reason": "up to 12 words explaining the main match or gap"}}"""

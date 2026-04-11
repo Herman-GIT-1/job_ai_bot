@@ -7,7 +7,7 @@ import time
 import requests
 from dotenv import load_dotenv
 from anthropic import Anthropic
-from config import MODEL_QUERY_BUILDER
+from config import MODEL_QUERY_BUILDER, TECH_KEYWORDS
 from resume_parser import load_resume
 
 load_dotenv()
@@ -42,12 +42,7 @@ def _strip_html(text: str, max_len: int = 1500) -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()[:max_len]
 
-TECH_KEYWORDS = [
-    "Python", "SQL", "Java", "JavaScript", "TypeScript", "React", "Django",
-    "Flask", "FastAPI", "PostgreSQL", "MongoDB", "Docker", "Git",
-    "Power BI", "Excel", "R", "Machine Learning", "pandas", "scikit-learn",
-    "Alteryx", "Tableau", "Spark", "C#", "C++", "Go", "Kotlin", "Swift",
-]
+# TECH_KEYWORDS is imported from config.py — edit the domain registry there.
 
 JUNIOR_KEYWORDS = [
     "intern", "junior", "trainee", "stażyst", "praktyk", "staż",
