@@ -175,7 +175,8 @@ async def _send_jobs(msg, chat_id: int, min_score: int, lang_code: str,
             cur = salary_currency or "PLN"
             salary_line = f"\n💰 {salary_min:,}–{salary_max:,} {cur}" if salary_max else f"\n💰 from {salary_min:,} {cur}"
 
-        reason_line = f"\n<i>{score_reason}</i>" if score_reason else ""
+        safe_reason = score_reason.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") if score_reason else ""
+        reason_line = f"\n<i>{safe_reason}</i>" if safe_reason else ""
 
         text = (
             f"<b>{title}</b>\n"
