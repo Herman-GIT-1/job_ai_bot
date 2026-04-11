@@ -635,6 +635,10 @@ async def _daily_cleanup(context) -> None:
         logger.info("Deleted %d expired jobs (>%d days old, unscored)", deleted, JOB_EXPIRY_DAYS)
 
 
+async def _daily_backup(context) -> None:
+    await send_backup(context.bot, ADMIN_CHAT_ID)
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
@@ -646,6 +650,10 @@ def main():
     app.job_queue.run_daily(
         _daily_cleanup,
         time=datetime.time(hour=4, tzinfo=datetime.timezone.utc),
+    )
+    app.job_queue.run_daily(
+        _daily_backup,
+        time=datetime.time(hour=3, tzinfo=datetime.timezone.utc),
     )
 
     scrape_conv = ConversationHandler(
