@@ -53,12 +53,22 @@ JUNIOR_KEYWORDS = [
     "intern", "junior", "trainee", "stażyst", "praktyk", "staż",
     "absolwent", "młodszy", "entry-level", "entry level", "graduate",
     "associate", "bez doświadczenia", "apprentice",
+    # entry-level signals common in finance/non-IT job descriptions
+    "recent graduate", "fresh graduate", "dla absolwent", "dla studenta",
+    "0-2 lat", "do 2 lat", "0-1 rok", "no experience required",
 ]
+
+# Query-level keywords that signal the search is already targeting juniors.
+# When present in the query, we trust the search engine and skip title-level filtering.
+_JUNIOR_QUERY_WORDS = {
+    "junior", "intern", "stażysta", "praktyk", "trainee",
+    "młodszy", "absolwent", "entry",
+}
 
 # Remotive API categories — used for dynamic category selection
 REMOTIVE_CATEGORIES = [
     "software-dev", "data", "marketing", "design", "devops",
-    "finance", "product", "writing", "hr", "qa",
+    "finance", "product", "writing", "hr", "qa", "all-others",
 ]
 
 # Job titles to exclude — irrelevant for students regardless of "junior" label
@@ -73,20 +83,26 @@ def build_queries(resume_text: str, city: str) -> tuple[list[str], bool, list[st
     """Use Claude to generate job search terms and Remotive categories from resume.
     Returns (queries, used_fallback, remotive_categories)."""
     prompt = f"""Analyze this resume and return a JSON object with two keys:
-- "queries": array of 6 short job search strings for positions in {city}, Poland, based on the person's skills, split evenly:
-    * 3 strings for JUNIOR roles  — start with "junior" or "młodszy"
-    * 3 strings for INTERN roles  — start with "intern", "stażysta", or "praktykant"
-  Each string is a "what" keyword for a job search API (2-4 words max).
-  Base ALL 6 on the person's actual field of study and skills — do NOT restrict to IT.
-  Examples for various profiles:
-    IT student:         "junior python developer", "intern python developer", "junior data analyst",     "data analyst intern"
-    Marketing student:  "junior marketing specialist", "junior copywriter",   "marketing intern"
-    Finance student:    "junior financial analyst", "junior accountant",      "stażysta analityk"
-    Design student:     "junior graphic designer", "junior ux designer",      "praktykant grafika"
-  NEVER include jobs like driver, cashier, warehouse, security, delivery, cook, waiter.
 
-- "remotive_categories": array of 1-3 Remotive API category slugs that best match this resume.
+"queries": array of 6 short job search strings (2-5 words each) for a job search API.
+  Rules:
+  - Base ALL queries on the person's ACTUAL field, skills, and experience — do NOT default to IT.
+  - 3 queries must contain a junior-level word: "junior", "młodszy", "trainee", or "associate"
+  - 3 queries must contain an intern-level word: "intern", "stażysta", or "praktykant"
+  - Match the person's real domain: finance → "junior financial analyst"; banking → "junior operations analyst"; marketing → "junior marketing specialist"; IT → "junior python developer"
+  - For finance/banking profiles use real industry titles: analyst, specialist, operations, risk, compliance, settlements, reconciliation, treasury, AML, KYC
+  - For experienced candidates apply junior prefix to their specialisation, not generic roles
+  - NEVER output: driver, cashier, warehouse, security, delivery, cook, waiter, bartender
+
+"remotive_categories": array of 1-3 Remotive API category slugs that best match this resume.
   Choose ONLY from: {REMOTIVE_CATEGORIES}
+  For finance/banking profiles prefer: "finance". For IT: "software-dev" or "data".
+
+Examples by profile:
+  Python dev:     ["junior python developer", "junior data engineer", "intern python", "data analyst intern", "stażysta python", "praktykant programista"]
+  Finance/Banking:["junior financial analyst", "junior operations analyst", "junior risk analyst", "intern finance", "stażysta analityk", "praktykant finansowy"]
+  Marketing:      ["junior marketing specialist", "junior social media", "junior copywriter", "marketing intern", "stażysta marketing", "praktykant content"]
+  Data/BI:        ["junior data analyst", "junior bi analyst", "junior sql analyst", "data analyst intern", "stażysta analityk danych", "intern business intelligence"]
 
 Resume:
 {resume_text}
@@ -119,11 +135,16 @@ Return ONLY a valid JSON object. No explanation."""
     return ["junior developer", "intern IT", "junior python", "stażysta programista"], True, ["software-dev"]
 
 
-def _is_junior(title: str) -> bool:
-    t = title.lower()
-    if any(w in t for w in _EXCLUDED_TITLE_KEYWORDS):
+def _is_junior(title: str, description: str = "") -> bool:
+    """True if the job seems entry-level and not in an excluded category.
+    Checks title first; falls back to description for non-IT fields where
+    job titles rarely contain 'junior' (e.g. finance, marketing).
+    """
+    title_lower = title.lower()
+    if any(w in title_lower for w in _EXCLUDED_TITLE_KEYWORDS):
         return False
-    return any(w in t for w in JUNIOR_KEYWORDS)
+    combined = title_lower + " " + description[:400].lower()
+    return any(w in combined for w in JUNIOR_KEYWORDS)
 
 
 def _extract_tech(text: str) -> str:
@@ -139,6 +160,10 @@ def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
     jobs = []
     for query in queries:
         logger.info("[Adzuna] Ищу: %s", query)
+        # If the query already targets juniors (e.g. "junior financial analyst"),
+        # the search engine already filtered by seniority — don't double-filter by title.
+        # Only exclude irrelevant job categories. Otherwise apply the full _is_junior check.
+        query_targets_junior = any(w in query.lower() for w in _JUNIOR_QUERY_WORDS)
         params = {
             "app_id": ADZUNA_APP_ID,
             "app_key": ADZUNA_APP_KEY,
@@ -152,12 +177,17 @@ def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
             r.raise_for_status()
             for offer in r.json().get("results", []):
                 title = offer.get("title", "")
-                if not _is_junior(title):
-                    continue
                 link = offer.get("redirect_url", "")
                 if not link:
                     continue
                 description = _strip_html(offer.get("description") or "")
+                if query_targets_junior:
+                    # Trust the query; only exclude blacklisted categories
+                    if any(w in title.lower() for w in _EXCLUDED_TITLE_KEYWORDS):
+                        continue
+                else:
+                    if not _is_junior(title, description):
+                        continue
                 jobs.append({
                     "title": title,
                     "company": (offer.get("company") or {}).get("display_name", "Unknown"),
@@ -273,13 +303,13 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
 
         for offer in offers:
             title = offer.get("title", "")
-            if not _is_junior(title):
-                continue
             link = offer.get("url", "")
             if not link or link in seen_links:
                 continue
-            seen_links.add(link)
             description = _strip_html(offer.get("description") or "")
+            if not _is_junior(title, description):
+                continue
+            seen_links.add(link)
             jobs.append({
                 "title": title,
                 "company": offer.get("company_name", "Unknown"),
