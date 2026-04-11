@@ -74,7 +74,7 @@ Always commit after writes. Never commit inside a loop — batch writes, commit 
 
 ## CLI sentinel
 
-`CLI_CHAT_ID = 0` is used by `main.py` and `open_jobs.py` for CLI mode.
+`CLI_CHAT_ID = 0` is used by `main.py` for CLI mode.
 Never hardcode 0 inside functions. Import it: `from database import CLI_CHAT_ID`.
 
 ---
