@@ -14,7 +14,8 @@ TEXTS: dict[str, dict[str, str]] = {
             "Hi! Resume already loaded.\n\n"
             "/scrape — find jobs (will ask for a city)\n"
             "/score — score found jobs with AI\n"
-            "/jobs — show jobs with score ≥ 7\n"
+            "/jobs — browse jobs in Mini App\n"
+            "/tracker — track your applications\n"
             "/resume — view current resume\n"
             "/stats — statistics\n"
             "/language — change language\n"
@@ -41,6 +42,7 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "scrape_done": "Done. Found: {found}, new in DB: {saved}.",
         "scrape_cancelled": "Search cancelled.",
+        "scrape_cooldown": "Please wait {minutes} min before searching again.",
         # --- scoring ---
         "score_no_resume": "Resume not found. Send a file (.txt, .pdf, .docx) and try again.",
         "score_no_jobs": "No jobs to score. Run /scrape first.",
@@ -48,7 +50,6 @@ TEXTS: dict[str, dict[str, str]] = {
         "score_done": "Done. Scored: {total} jobs.",
         "score_high_alert": "⭐ {high} job(s) scored ≥ 8 — tap the button to browse!",
         "score_no_good_jobs": "No jobs met the minimum score threshold. Try /scrape to fetch more.",
-        "scrape_cooldown": "Please wait {minutes} min before searching again.",
         "rescore_start": "Scores reset. Re-scoring now…",
         # --- jobs ---
         "jobs_none": "No new jobs with score ≥ {min_score}.",
@@ -62,10 +63,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_rejected": "Rejected ❌",
         "skipped_msg": "Skipped ❌",
         "letter_not_found": "Letter not found.",
+        "interested_msg": "Saved to your list ✅",
         # --- pagination ---
         "jobs_show_more": "Show {remaining} more →",
         "jobs_page_info": "Showing {shown} of {total}",
-        # --- onboarding ---
+        # --- onboarding city ---
         "onboard_ask_city": "Great! Now choose a city for your first job search:",
         # --- tracker ---
         "tracker_empty": "No applications yet. Use /jobs to find jobs and apply.",
@@ -76,7 +78,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "tracker_followup": "follow up?",
         "status_interviewing": "Marked as interviewing",
         "status_rejected": "Marked as rejected",
-        "status_offer": "Offer received!",
+        "status_offer": "Offer received! 🎉",
         # --- feedback ---
         "feedback_generating": "Analyzing your resume…",
         "feedback_header": "📋 Resume Feedback",
@@ -97,7 +99,6 @@ TEXTS: dict[str, dict[str, str]] = {
         # --- language ---
         "lang_choose": "Choose language:",
         "lang_set": "Language set to English 🇬🇧",
-        # --- after language set ---
         "lang_set_next_no_resume": (
             "To get started, send your resume file (.txt, .pdf, .docx).\n"
             "I'll use it to search for relevant jobs and score them."
@@ -116,7 +117,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "⭐ Scoring\n"
             "/score — score all found jobs with AI\n"
             "/rescore — reset scores and re-score\n"
-            "/jobs [N] — show jobs with score ≥ N (default 7)\n\n"
+            "/jobs — browse jobs in Mini App\n\n"
+            "📋 Tracking\n"
+            "/tracker — view and manage your applications\n\n"
             "📊 Info\n"
             "/stats — show statistics\n"
             "/start — welcome message\n\n"
@@ -127,17 +130,17 @@ TEXTS: dict[str, dict[str, str]] = {
         # --- mini app ---
         "webapp_btn": "🃏 Browse Jobs",
         "webapp_open": "Tap the button below to browse jobs with swipe cards:",
-        "webapp_not_configured": "Mini App is not configured yet. Use /jobs to see jobs in chat.",
-        "interested_msg": "Saved to your list ✅",
         # --- backup ---
         "backup_running": "Creating backup…",
         "backup_done": "Backup sent ✅",
         # --- misc ---
+        "error_generic": "Something went wrong: {error}",
         "access_denied": "Access denied.",
         "stop_msg": "Stopping bot…",
     },
 
     "ru": {
+        # --- onboarding ---
         "start_no_resume": (
             "Привет! Я нахожу стажировки и junior IT-вакансии в Польше.\n\n"
             "Отправь резюме, чтобы начать (.txt, .pdf, .docx)."
@@ -146,12 +149,14 @@ TEXTS: dict[str, dict[str, str]] = {
             "Привет! Резюме уже загружено.\n\n"
             "/scrape — найти вакансии (спросит город)\n"
             "/score — оценить вакансии через AI\n"
-            "/jobs — показать вакансии с оценкой ≥ 7\n"
+            "/jobs — просмотр вакансий в Mini App\n"
+            "/tracker — отслеживать заявки\n"
             "/resume — показать резюме\n"
             "/stats — статистика\n"
             "/language — сменить язык\n"
             "/stop — остановить бота"
         ),
+        # --- resume ---
         "resume_not_found": "Резюме не найдено. Отправь файл (.txt, .pdf, .docx).",
         "resume_show_header": "Текущее резюме ({chars} символов):",
         "resume_unsupported": "Поддерживаются только .txt, .pdf, .docx.",
@@ -159,6 +164,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "resume_saved": "Резюме сохранено ✅ ({chars} символов).\nБудет использоваться при следующем /scrape.",
         "resume_error": "Ошибка: {error}",
         "resume_upload_failed": "Не удалось обработать файл: {error}",
+        # --- scrape ---
         "scrape_ask_city": "В каком городе искать?\nИли введи название города вручную.\n\n/cancel — отменить.",
         "scrape_searching": "Ищу вакансии в {city}… ~30 секунд.",
         "scrape_no_resume_hint": (
@@ -171,14 +177,16 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "scrape_done": "Готово. Найдено: {found}, новых в базе: {saved}.",
         "scrape_cancelled": "Поиск отменён.",
+        "scrape_cooldown": "Подожди ещё {minutes} мин. перед следующим поиском.",
+        # --- scoring ---
         "score_no_resume": "Резюме не найдено. Отправь файл (.txt, .pdf, .docx) и повтори.",
         "score_no_jobs": "Нет вакансий для оценки. Сначала запусти /scrape.",
         "score_progress": "Оцениваю {done}/{total}…",
         "score_done": "Готово. Оценено вакансий: {total}.",
         "score_high_alert": "⭐ {high} вакансий с оценкой ≥ 8 — нажми кнопку, чтобы открыть!",
         "score_no_good_jobs": "Ни одна вакансия не прошла минимальный порог оценки. Попробуй /scrape.",
-        "scrape_cooldown": "Подожди ещё {minutes} мин. перед следующим поиском.",
         "rescore_start": "Оценки сброшены. Запускаю оценку заново…",
+        # --- jobs ---
         "jobs_none": "Нет новых вакансий с оценкой ≥ {min_score}.",
         "jobs_found": "Найдено вакансий (score ≥ {min_score}): {count}",
         "btn_apply": "Подать ✅",
@@ -190,9 +198,13 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_rejected": "Отказ ❌",
         "skipped_msg": "Пропущено ❌",
         "letter_not_found": "Письмо не найдено.",
+        "interested_msg": "Сохранено в список ✅",
+        # --- pagination ---
         "jobs_show_more": "Показать ещё {remaining} →",
         "jobs_page_info": "Показано {shown} из {total}",
+        # --- onboarding city ---
         "onboard_ask_city": "Отлично! Теперь выбери город для первого поиска:",
+        # --- tracker ---
         "tracker_empty": "Заявок пока нет. Используй /jobs чтобы найти вакансии.",
         "tracker_header": "📋 Твои заявки ({count} всего):\n",
         "tracker_today": "Сегодня",
@@ -201,9 +213,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "tracker_followup": "написать follow-up?",
         "status_interviewing": "Отмечено: собеседование",
         "status_rejected": "Отмечено: отказ",
-        "status_offer": "Оффер получен!",
+        "status_offer": "Оффер получен! 🎉",
+        # --- feedback ---
         "feedback_generating": "Анализирую резюме…",
         "feedback_header": "📋 Анализ резюме",
+        # --- stats ---
         "stats": (
             "📊 Статистика:\n"
             "Всего вакансий: {total}\n"
@@ -212,13 +226,14 @@ TEXTS: dict[str, dict[str, str]] = {
             "Подано заявок: {applied}\n"
             "Пропущено: {skipped}"
         ),
+        # --- quick-action buttons ---
         "btn_view_jobs": "📋 Смотреть вакансии",
         "btn_rescore": "🔄 Переоценить",
         "btn_score_now": "🤖 Оценить сейчас",
         "btn_help": "❓ Помощь",
+        # --- language ---
         "lang_choose": "Выбери язык:",
         "lang_set": "Язык изменён на Русский 🇷🇺",
-        # --- after language set ---
         "lang_set_next_no_resume": (
             "Для начала отправь файл с резюме (.txt, .pdf, .docx).\n"
             "Я использую его для поиска подходящих вакансий и их оценки."
@@ -237,7 +252,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "⭐ Оценка\n"
             "/score — оценить все найденные вакансии через AI\n"
             "/rescore — сбросить оценки и переоценить\n"
-            "/jobs [N] — показать вакансии с оценкой ≥ N (по умолчанию 7)\n\n"
+            "/jobs — просмотр вакансий в Mini App\n\n"
+            "📋 Отслеживание\n"
+            "/tracker — просмотр и управление заявками\n\n"
             "📊 Информация\n"
             "/stats — статистика\n"
             "/start — приветственное сообщение\n\n"
@@ -248,16 +265,17 @@ TEXTS: dict[str, dict[str, str]] = {
         # --- mini app ---
         "webapp_btn": "🃏 Смотреть вакансии",
         "webapp_open": "Нажми кнопку ниже, чтобы листать вакансии карточками:",
-        "webapp_not_configured": "Mini App ещё не настроен. Используй /jobs для просмотра в чате.",
-        "interested_msg": "Сохранено в список ✅",
         # --- backup ---
         "backup_running": "Создаю резервную копию…",
         "backup_done": "Резервная копия отправлена ✅",
+        # --- misc ---
+        "error_generic": "Что-то пошло не так: {error}",
         "access_denied": "Доступ запрещён.",
         "stop_msg": "Останавливаю бота…",
     },
 
     "pl": {
+        # --- onboarding ---
         "start_no_resume": (
             "Cześć! Szukam staży i ofert junior IT w Polsce.\n\n"
             "Wyślij swoje CV, żeby zacząć (.txt, .pdf, .docx)."
@@ -266,12 +284,14 @@ TEXTS: dict[str, dict[str, str]] = {
             "Cześć! CV już wgrane.\n\n"
             "/scrape — znajdź oferty (zapyta o miasto)\n"
             "/score — ocen oferty przez AI\n"
-            "/jobs — pokaż oferty z oceną ≥ 7\n"
+            "/jobs — przeglądaj oferty w Mini App\n"
+            "/tracker — śledź swoje aplikacje\n"
             "/resume — pokaż aktualne CV\n"
             "/stats — statystyki\n"
             "/language — zmień język\n"
             "/stop — zatrzymaj bota"
         ),
+        # --- resume ---
         "resume_not_found": "CV nie znalezione. Wyślij plik (.txt, .pdf, .docx).",
         "resume_show_header": "Aktualne CV ({chars} znaków):",
         "resume_unsupported": "Obsługiwane tylko .txt, .pdf, .docx.",
@@ -279,6 +299,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "resume_saved": "CV zapisane ✅ ({chars} znaków).\nBędzie używane przy następnym /scrape.",
         "resume_error": "Błąd: {error}",
         "resume_upload_failed": "Nie udało się przetworzyć pliku: {error}",
+        # --- scrape ---
         "scrape_ask_city": "W jakim mieście szukać?\nMożesz też wpisać nazwę miasta ręcznie.\n\n/cancel — anuluj.",
         "scrape_searching": "Szukam ofert w {city}… ~30 sekund.",
         "scrape_no_resume_hint": (
@@ -291,14 +312,16 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "scrape_done": "Gotowe. Znalezione: {found}, nowych w bazie: {saved}.",
         "scrape_cancelled": "Wyszukiwanie anulowane.",
+        "scrape_cooldown": "Poczekaj jeszcze {minutes} min. przed następnym wyszukiwaniem.",
+        # --- scoring ---
         "score_no_resume": "CV nie znalezione. Wyślij plik (.txt, .pdf, .docx) i spróbuj ponownie.",
         "score_no_jobs": "Brak ofert do oceny. Najpierw uruchom /scrape.",
         "score_progress": "Oceniam {done}/{total}…",
         "score_done": "Gotowe. Oceniono ofert: {total}.",
         "score_high_alert": "⭐ {high} ofert z oceną ≥ 8 — naciśnij przycisk, aby przeglądać!",
         "score_no_good_jobs": "Żadna oferta nie spełniła minimalnego progu. Spróbuj /scrape.",
-        "scrape_cooldown": "Poczekaj jeszcze {minutes} min. przed następnym wyszukiwaniem.",
         "rescore_start": "Oceny zresetowane. Ponowna ocena…",
+        # --- jobs ---
         "jobs_none": "Brak nowych ofert z oceną ≥ {min_score}.",
         "jobs_found": "Znalezione oferty (ocena ≥ {min_score}): {count}",
         "btn_apply": "Aplikuj ✅",
@@ -310,9 +333,13 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_rejected": "Odmowa ❌",
         "skipped_msg": "Pominięto ❌",
         "letter_not_found": "List nie znaleziony.",
+        "interested_msg": "Zapisano do listy ✅",
+        # --- pagination ---
         "jobs_show_more": "Pokaż {remaining} więcej →",
         "jobs_page_info": "Pokazano {shown} z {total}",
+        # --- onboarding city ---
         "onboard_ask_city": "Świetnie! Wybierz miasto do pierwszego wyszukiwania:",
+        # --- tracker ---
         "tracker_empty": "Brak aplikacji. Użyj /jobs żeby znaleźć oferty.",
         "tracker_header": "📋 Twoje aplikacje ({count} łącznie):\n",
         "tracker_today": "Dzisiaj",
@@ -321,9 +348,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "tracker_followup": "napisać follow-up?",
         "status_interviewing": "Zaznaczono: rozmowa rekrutacyjna",
         "status_rejected": "Zaznaczono: odmowa",
-        "status_offer": "Oferta otrzymana!",
+        "status_offer": "Oferta otrzymana! 🎉",
+        # --- feedback ---
         "feedback_generating": "Analizuję CV…",
         "feedback_header": "📋 Analiza CV",
+        # --- stats ---
         "stats": (
             "📊 Statystyki:\n"
             "Wszystkich ofert: {total}\n"
@@ -332,13 +361,14 @@ TEXTS: dict[str, dict[str, str]] = {
             "Złożono aplikacji: {applied}\n"
             "Pominiętych: {skipped}"
         ),
+        # --- quick-action buttons ---
         "btn_view_jobs": "📋 Pokaż oferty",
         "btn_rescore": "🔄 Oceń ponownie",
         "btn_score_now": "🤖 Oceń teraz",
         "btn_help": "❓ Pomoc",
+        # --- language ---
         "lang_choose": "Wybierz język:",
         "lang_set": "Język zmieniony na Polski 🇵🇱",
-        # --- after language set ---
         "lang_set_next_no_resume": (
             "Na start wyślij plik CV (.txt, .pdf, .docx).\n"
             "Użyję go do wyszukiwania i oceny ofert pracy."
@@ -357,7 +387,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "⭐ Ocenianie\n"
             "/score — oceń oferty przez AI\n"
             "/rescore — zresetuj oceny i oceń ponownie\n"
-            "/jobs [N] — pokaż oferty z oceną ≥ N (domyślnie 7)\n\n"
+            "/jobs — przeglądaj oferty w Mini App\n\n"
+            "📋 Śledzenie\n"
+            "/tracker — zarządzaj swoimi aplikacjami\n\n"
             "📊 Informacje\n"
             "/stats — statystyki\n"
             "/start — wiadomość powitalna\n\n"
@@ -368,11 +400,11 @@ TEXTS: dict[str, dict[str, str]] = {
         # --- mini app ---
         "webapp_btn": "🃏 Przeglądaj oferty",
         "webapp_open": "Kliknij przycisk poniżej, aby przeglądać oferty kartami:",
-        "webapp_not_configured": "Mini App nie jest jeszcze skonfigurowany. Użyj /jobs aby zobaczyć oferty w czacie.",
-        "interested_msg": "Zapisano do listy ✅",
         # --- backup ---
         "backup_running": "Tworzę kopię zapasową…",
         "backup_done": "Kopia zapasowa wysłana ✅",
+        # --- misc ---
+        "error_generic": "Coś poszło nie tak: {error}",
         "access_denied": "Brak dostępu.",
         "stop_msg": "Zatrzymuję bota…",
     },
