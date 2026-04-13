@@ -82,6 +82,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS filter_skills TEXT DEFAULT ''",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS resume_file_id TEXT",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS resume_file_name TEXT",
+                "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS city TEXT DEFAULT 'Warsaw'",
             ]:
                 cur.execute(ddl)
             # One-time cleanup: remove pending duplicate jobs with same (title, company, chat_id),
@@ -165,6 +166,28 @@ def get_resume(chat_id: int) -> str | None:
             )
             row = cur.fetchone()
     return row[0] if row else None
+
+
+def get_user_city(chat_id: int) -> str:
+    """Return user's saved city, defaulting to 'Warsaw'."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT city FROM user_settings WHERE chat_id = %s", (chat_id,)
+            )
+            row = cur.fetchone()
+    return (row[0] or "Warsaw") if row else "Warsaw"
+
+
+def set_user_city(chat_id: int, city: str) -> None:
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO user_settings (chat_id, city) VALUES (%s, %s)"
+                " ON CONFLICT (chat_id) DO UPDATE SET city = EXCLUDED.city",
+                (chat_id, city),
+            )
+        conn.commit()
 
 
 def get_resume_file(chat_id: int) -> tuple[str, str] | None:
