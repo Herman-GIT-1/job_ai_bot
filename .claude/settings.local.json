@@ -24,7 +24,8 @@
       "Bash(dir \"C:\\\\Users\\\\job_ai_bot\")",
       "Bash(/c/Users/User/PostgreSQL/18/bin/psql -U job_bot_user -h localhost -p 5432 -d job_bot -c ':*)",
       "Bash(python -c \"from dotenv import load_dotenv; load_dotenv\\(\\); import bot; print\\('OK'\\)\")",
-      "Read(//c/Users/job_ai_bot/static/**)"
+      "Read(//c/Users/job_ai_bot/static/**)",
+      "Bash(chmod +x /c/Users/job_ai_bot/.claude/hooks/pre-commit-check.sh)"
     ],
     "deny": [
       "Bash(git push:*)"

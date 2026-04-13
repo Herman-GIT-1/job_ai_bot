@@ -1,3 +1,10 @@
+---
+paths:
+  - "ai_score.py"
+  - "cover_letter.py"
+  - "scraper.py"
+---
+
 # rules/api.md
 
 Read this before touching `ai_score.py`, `cover_letter.py`, or `scraper.py`.

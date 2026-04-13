@@ -1,3 +1,10 @@
+---
+paths:
+  - "**/*.py"
+  - "CLAUDE.md"
+  - ".gitignore"
+---
+
 # rules/git.md
 
 Read this before every commit.

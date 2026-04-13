@@ -1,3 +1,8 @@
+---
+paths:
+  - "database.py"
+---
+
 # rules/database.md
 
 Read this before touching `database.py` or writing any SQL.

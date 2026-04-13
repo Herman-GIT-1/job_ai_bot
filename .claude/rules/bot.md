@@ -1,3 +1,9 @@
+---
+paths:
+  - "bot.py"
+  - "strings.py"
+---
+
 # rules/bot.md
 
 Read this before touching `bot.py` or `strings.py`.
