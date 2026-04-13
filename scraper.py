@@ -60,6 +60,9 @@ _JUNIOR_QUERY_WORDS = {
     "młodszy", "absolwent", "entry",
 }
 
+# Seniority keywords a user can add as custom filters to switch from junior to senior mode.
+_SENIOR_SENIORITY = {"senior", "mid", "regular", "lead", "principal", "staff", "expert"}
+
 # Remotive API categories — used for dynamic category selection
 REMOTIVE_CATEGORIES = [
     "software-dev", "data", "marketing", "design", "devops",
@@ -74,30 +77,63 @@ _EXCLUDED_TITLE_KEYWORDS = [
 ]
 
 
-def build_queries(resume_text: str, city: str) -> tuple[list[str], bool, list[str]]:
-    """Use Claude to generate job search terms and Remotive categories from resume.
+def build_queries(resume_text: str, city: str, skills: list[str] = None) -> tuple[list[str], bool, list[str]]:
+    """Use Claude to generate job search terms and Remotive categories from resume + user filters.
     Returns (queries, used_fallback, remotive_categories)."""
-    prompt = f"""Analyze this resume and return a JSON object with two keys:
+    seniority  = _detect_seniority(skills)
+    is_senior  = seniority == "senior"
+    specialties = _specialty_list(skills)
+
+    specialty_line = (
+        f"User's selected specialties/keywords (prioritise these over resume): {', '.join(specialties)}"
+        if specialties
+        else "Base ALL queries on the person's ACTUAL field, skills, and experience — do NOT default to IT."
+    )
+
+    if is_senior:
+        seniority_rules = (
+            '- Generate queries for EXPERIENCED professionals — no junior/intern words\n'
+            '- 4 queries must use "senior" prefix: "senior python developer", "senior financial analyst"\n'
+            '- 2 queries without seniority prefix (role only, implying experienced level)\n'
+            '- NEVER use: junior, intern, stażysta, praktykant, trainee, associate, entry'
+        )
+        examples = (
+            '  Python dev:      ["senior python developer", "senior backend engineer", "senior data engineer", "python developer", "backend engineer", "software engineer"]\n'
+            '  Finance/Banking: ["senior financial analyst", "senior risk analyst", "senior compliance officer", "financial analyst", "risk manager", "treasury manager"]\n'
+            '  Marketing:       ["senior marketing specialist", "senior SEO specialist", "senior content strategist", "marketing manager", "brand manager", "digital marketing"]\n'
+            '  Data/BI:         ["senior data analyst", "senior BI analyst", "senior data engineer", "data engineer", "BI developer", "analytics engineer"]'
+        )
+        fallback = ["senior developer", "senior python developer", "senior data analyst",
+                    "senior financial analyst", "python developer", "data analyst"]
+    else:
+        seniority_rules = (
+            '- 3 queries must contain a junior-level word: "junior", "młodszy", "trainee", or "associate"\n'
+            '- 3 queries must contain an intern-level word: "intern", "stażysta", or "praktykant"'
+        )
+        examples = (
+            '  Python dev:      ["junior python developer", "junior data engineer", "intern python", "data analyst intern", "stażysta python", "praktykant programista"]\n'
+            '  Finance/Banking: ["junior financial analyst", "junior operations analyst", "junior risk analyst", "intern finance", "stażysta analityk", "praktykant finansowy"]\n'
+            '  Marketing:       ["junior marketing specialist", "junior social media", "junior copywriter", "marketing intern", "stażysta marketing", "praktykant content"]\n'
+            '  Data/BI:         ["junior data analyst", "junior bi analyst", "junior sql analyst", "data analyst intern", "stażysta analityk danych", "intern business intelligence"]'
+        )
+        fallback = ["junior developer", "intern IT", "junior python", "stażysta programista",
+                    "junior analyst", "intern finance"]
+
+    prompt = f"""Analyze this resume and user preferences, then return a JSON object with two keys:
 
 "queries": array of 6 short job search strings (2-5 words each) for a job search API.
   Rules:
-  - Base ALL queries on the person's ACTUAL field, skills, and experience — do NOT default to IT.
-  - 3 queries must contain a junior-level word: "junior", "młodszy", "trainee", or "associate"
-  - 3 queries must contain an intern-level word: "intern", "stażysta", or "praktykant"
-  - Match the person's real domain: finance → "junior financial analyst"; banking → "junior operations analyst"; marketing → "junior marketing specialist"; IT → "junior python developer"
-  - For finance/banking profiles use real industry titles: analyst, specialist, operations, risk, compliance, settlements, reconciliation, treasury, AML, KYC
-  - For experienced candidates apply junior prefix to their specialisation, not generic roles
+  - {specialty_line}
+  - {seniority_rules}
+  - Match the person's real domain: finance → analyst/specialist/operations/risk/compliance/treasury/AML/KYC; IT → developer/engineer/analyst
   - NEVER output: driver, cashier, warehouse, security, delivery, cook, waiter, bartender
 
-"remotive_categories": array of 1-3 Remotive API category slugs that best match this resume.
+"remotive_categories": array of 1-3 Remotive API category slugs that best match this profile.
   Choose ONLY from: {REMOTIVE_CATEGORIES}
-  For finance/banking profiles prefer: "finance". For IT: "software-dev" or "data".
+  Finance/banking → "finance". IT → "software-dev" or "data". Marketing → "marketing".
 
-Examples by profile:
-  Python dev:     ["junior python developer", "junior data engineer", "intern python", "data analyst intern", "stażysta python", "praktykant programista"]
-  Finance/Banking:["junior financial analyst", "junior operations analyst", "junior risk analyst", "intern finance", "stażysta analityk", "praktykant finansowy"]
-  Marketing:      ["junior marketing specialist", "junior social media", "junior copywriter", "marketing intern", "stażysta marketing", "praktykant content"]
-  Data/BI:        ["junior data analyst", "junior bi analyst", "junior sql analyst", "data analyst intern", "stażysta analityk danych", "intern business intelligence"]
+Examples:
+{examples}
 
 Resume:
 {resume_text}
@@ -111,7 +147,6 @@ Return ONLY a valid JSON object. No explanation."""
             messages=[{"role": "user", "content": prompt}]
         )
         raw = response.content[0].text.strip()
-        # Strip markdown code fences if Claude wrapped the JSON
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -121,13 +156,12 @@ Return ONLY a valid JSON object. No explanation."""
         queries = result.get("queries", [])
         categories = result.get("remotive_categories", ["software-dev"])
         if isinstance(queries, list) and queries:
-            # Validate categories against known list
             categories = [c for c in categories if c in REMOTIVE_CATEGORIES] or ["software-dev"]
             return queries, False, categories
     except Exception as e:
         logger.warning("Failed to generate queries via AI: %s", e)
 
-    return ["junior developer", "intern IT", "junior python", "stażysta programista"], True, ["software-dev"]
+    return fallback, True, ["software-dev"]
 
 
 def _is_junior(title: str, description: str = "") -> bool:
@@ -153,7 +187,21 @@ def _matches_skills(job: dict, skills: list[str]) -> bool:
     return any(s.lower() in text for s in skills)
 
 
-def _fetch_adzuna(queries: list[str], city: str, skills: list[str] = None) -> list[dict]:
+def _detect_seniority(skills: list[str]) -> str:
+    """Return 'senior' if user's skills list contains a seniority indicator, else 'junior'."""
+    lower = {s.lower() for s in (skills or [])}
+    if lower & _SENIOR_SENIORITY:
+        return "senior"
+    return "junior"
+
+
+def _specialty_list(skills: list[str]) -> list[str]:
+    """Return skills stripped of seniority markers (pure domain/tech keywords)."""
+    all_seniority = _SENIOR_SENIORITY | _JUNIOR_QUERY_WORDS | {"entry-level", "stażysta", "praktykant"}
+    return [s for s in (skills or []) if s.lower() not in all_seniority]
+
+
+def _fetch_adzuna(queries: list[str], city: str, skills: list[str] = None, seniority: str = "junior") -> list[dict]:
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
         logger.info("No ADZUNA_APP_ID or ADZUNA_APP_KEY — source skipped.")
         return []
@@ -161,10 +209,6 @@ def _fetch_adzuna(queries: list[str], city: str, skills: list[str] = None) -> li
     jobs = []
     for query in queries:
         logger.info("[Adzuna] Searching: %s", query)
-        # If the query already targets juniors (e.g. "junior financial analyst"),
-        # the search engine already filtered by seniority — don't double-filter by title.
-        # Only exclude irrelevant job categories. Otherwise apply the full _is_junior check.
-        query_targets_junior = any(w in query.lower() for w in _JUNIOR_QUERY_WORDS)
         params = {
             "app_id": ADZUNA_APP_ID,
             "app_key": ADZUNA_APP_KEY,
@@ -173,9 +217,10 @@ def _fetch_adzuna(queries: list[str], city: str, skills: list[str] = None) -> li
             "where": city,
             "content-type": "application/json",
         }
-        # Append first skill to query so Adzuna ranks relevant results higher
-        if skills:
-            params["what"] = query + " " + skills[0]
+        # Append first specialty skill so Adzuna ranks relevant results higher
+        specialties = _specialty_list(skills)
+        if specialties:
+            params["what"] = query + " " + specialties[0]
         try:
             r = requests.get(ADZUNA_BASE_URL, params=params, timeout=15)
             r.raise_for_status()
@@ -185,12 +230,14 @@ def _fetch_adzuna(queries: list[str], city: str, skills: list[str] = None) -> li
                 if not link:
                     continue
                 description = _strip_html(offer.get("description") or "")
-                if query_targets_junior:
-                    # Trust the query; only exclude blacklisted categories
-                    if any(w in title.lower() for w in _EXCLUDED_TITLE_KEYWORDS):
-                        continue
-                else:
-                    if not _is_junior(title, description):
+                # Always exclude blacklisted job categories
+                if any(w in title.lower() for w in _EXCLUDED_TITLE_KEYWORDS):
+                    continue
+                # In junior mode: filter to entry-level jobs only
+                # In senior mode: queries already target senior roles — trust the API
+                if seniority == "junior":
+                    query_targets_junior = any(w in query.lower() for w in _JUNIOR_QUERY_WORDS)
+                    if not query_targets_junior and not _is_junior(title, description):
                         continue
                 jobs.append({
                     "title": title,
@@ -221,19 +268,28 @@ def _city_to_nfj_slug(city: str) -> str:
     return slug
 
 
-def _fetch_nofluffjobs(city: str, skills: list[str] = None) -> list[dict]:
+def _fetch_nofluffjobs(city: str, skills: list[str] = None, seniority: str = "junior") -> list[dict]:
     """NoFluffJobs — Polish IT jobs, no API key needed."""
     city_slug = _city_to_nfj_slug(city)
-    logger.info("[NoFluffJobs] Searching junior/intern in %s (slug: %s)...", city, city_slug)
+    logger.info("[NoFluffJobs] Searching %s in %s (slug: %s)...", seniority, city, city_slug)
+
+    if seniority == "senior":
+        nfj_levels     = ["senior", "mid", "regular", "expert"]
+        nfj_level_set  = {"senior", "mid", "regular", "expert"}
+    else:
+        nfj_levels     = ["junior", "intern", "trainee"]
+        nfj_level_set  = {"junior", "intern", "trainee"}
+
+    specialties = _specialty_list(skills)
 
     jobs = []
     page = 1
     total_pages = 1
 
     while page <= total_pages and page <= 5:  # cap at 250 jobs
-        criteria: dict = {"city": [city_slug], "requirement": ["junior", "intern", "trainee"]}
-        if skills:
-            criteria["skill"] = [s.lower() for s in skills]
+        criteria: dict = {"city": [city_slug], "requirement": nfj_levels}
+        if specialties:
+            criteria["skill"] = [s.lower() for s in specialties]
         body = {"criteriaSearch": criteria, "page": page, "pageSize": 50}
         try:
             r = requests.post(NFJ_SEARCH_URL, headers=NFJ_HEADERS, json=body, timeout=15)
@@ -244,8 +300,8 @@ def _fetch_nofluffjobs(city: str, skills: list[str] = None) -> list[dict]:
                 logger.info("[NoFluffJobs] Total: %d jobs, %d pages.", data.get("totalCount", 0), total_pages)
 
             for p in data.get("postings", []):
-                seniority = [s.lower() for s in (p.get("seniority") or [])]
-                if not any(s in ("junior", "intern", "trainee") for s in seniority):
+                job_seniority = [s.lower() for s in (p.get("seniority") or [])]
+                if not any(s in nfj_level_set for s in job_seniority):
                     continue
 
                 title = p.get("title", "")
@@ -284,7 +340,7 @@ def _fetch_nofluffjobs(city: str, skills: list[str] = None) -> list[dict]:
     return jobs
 
 
-def _fetch_remotive(categories: list[str]) -> list[dict]:
+def _fetch_remotive(categories: list[str], seniority: str = "junior") -> list[dict]:
     """Remotive — remote jobs worldwide, no API key needed.
     Queries each category from the provided list."""
     jobs = []
@@ -310,7 +366,8 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
             if not link or link in seen_links:
                 continue
             description = _strip_html(offer.get("description") or "")
-            if not _is_junior(title, description):
+            # In junior mode filter to entry-level only; senior mode trusts query results
+            if seniority == "junior" and not _is_junior(title, description):
                 continue
             seen_links.add(link)
             jobs.append({
@@ -331,22 +388,26 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
     return jobs
 
 
-def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str, skills: list[str] = None) -> list[dict]:
+def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str,
+                    skills: list[str] = None, seniority: str = "junior") -> list[dict]:
     """Shared fetcher for justjoin.it and rocketjobs.pl (internal Next.js API).
     City is not passed to the API (unreliable) — filtered client-side instead.
     """
+    exp_levels = ["senior", "mid"] if seniority == "senior" else ["junior", "intern"]
+    specialties = _specialty_list(skills)
+
     jobs = []
     seen_slugs: set[str] = set()
 
     for page in range(1, 11):  # cap at 500 jobs
         try:
             params = {
-                "experienceLevel[]": ["junior", "intern"],
+                "experienceLevel[]": exp_levels,
                 "limit": 50,
                 "page": page,
             }
-            if skills:
-                params["skill[]"] = [s.lower() for s in skills]
+            if specialties:
+                params["skill[]"] = [s.lower() for s in specialties]
             r = requests.get(api_url, params=params, timeout=15)
             r.raise_for_status()
             data = r.json()
@@ -375,14 +436,14 @@ def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str, sk
 
             seen_slugs.add(slug)
             emp = (item.get("employmentTypes") or [{}])[0]
-            skills = [s["name"] for s in (item.get("requiredSkills") or [])]
-            description = f"Required skills: {', '.join(skills)}." if skills else ""
+            req_skills = [s["name"] for s in (item.get("requiredSkills") or [])]
+            description = f"Required skills: {', '.join(req_skills)}." if req_skills else ""
 
             jobs.append({
                 "title": title,
                 "company": item.get("companyName", "Unknown"),
                 "link": f"{base_url}{slug}",
-                "tech_stack": ", ".join(skills[:6]),
+                "tech_stack": ", ".join(req_skills[:6]),
                 "remote": is_remote,
                 "city": item.get("city") or city_slug,
                 "description": description,
@@ -399,16 +460,18 @@ def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str, sk
     return jobs
 
 
-def _fetch_justjoin(city: str, skills: list[str] = None) -> list[dict]:
+def _fetch_justjoin(city: str, skills: list[str] = None, seniority: str = "junior") -> list[dict]:
     """JustJoin.it — internal Next.js API, no auth required."""
-    logger.info("[JustJoin] Searching junior/intern in %s...", city)
-    return _fetch_jjit_api(JUSTJOIN_API, _city_to_nfj_slug(city), "JustJoin", "https://justjoin.it/job-offer/", skills)
+    logger.info("[JustJoin] Searching %s in %s...", seniority, city)
+    return _fetch_jjit_api(JUSTJOIN_API, _city_to_nfj_slug(city), "JustJoin",
+                           "https://justjoin.it/job-offer/", skills, seniority)
 
 
-def _fetch_rocketjobs(city: str, skills: list[str] = None) -> list[dict]:
+def _fetch_rocketjobs(city: str, skills: list[str] = None, seniority: str = "junior") -> list[dict]:
     """RocketJobs — same backend as JustJoin (same company)."""
-    logger.info("[RocketJobs] Searching junior/intern in %s...", city)
-    return _fetch_jjit_api(ROCKETJOBS_API, _city_to_nfj_slug(city), "RocketJobs", "https://rocketjobs.pl/job-offer/", skills)
+    logger.info("[RocketJobs] Searching %s in %s...", seniority, city)
+    return _fetch_jjit_api(ROCKETJOBS_API, _city_to_nfj_slug(city), "RocketJobs",
+                           "https://rocketjobs.pl/job-offer/", skills, seniority)
 
 
 def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], bool]:
@@ -419,20 +482,21 @@ def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], boo
         resume_text = ""
         logger.warning("Resume not found — using fallback queries.")
 
-    skills = get_user_skills(chat_id)
+    skills   = get_user_skills(chat_id)
+    seniority = _detect_seniority(skills)
     if skills:
-        logger.info("Skills filter active: %s", skills)
+        logger.info("Skills filter active (%s mode): %s", seniority, skills)
 
-    queries, used_fallback, remotive_categories = build_queries(resume_text, city)
+    queries, used_fallback, remotive_categories = build_queries(resume_text, city, skills)
     logger.info("Adzuna queries: %d%s", len(queries), " (fallback)" if used_fallback else "")
-    logger.info("Remotive categories: %s", remotive_categories)
+    logger.info("Remotive categories: %s | seniority: %s", remotive_categories, seniority)
 
     raw = []
-    raw.extend(_fetch_adzuna(queries, city, skills))
-    raw.extend(_fetch_nofluffjobs(city, skills))
-    # raw.extend(_fetch_justjoin(city, skills))
-    # raw.extend(_fetch_rocketjobs(city, skills))
-    raw.extend(_fetch_remotive(remotive_categories))
+    raw.extend(_fetch_adzuna(queries, city, skills, seniority))
+    raw.extend(_fetch_nofluffjobs(city, skills, seniority))
+    # raw.extend(_fetch_justjoin(city, skills, seniority))
+    # raw.extend(_fetch_rocketjobs(city, skills, seniority))
+    raw.extend(_fetch_remotive(remotive_categories, seniority))
 
     # Deduplicate by link first, then by (title, company) to catch
     # same job appearing on JustJoin + RocketJobs (same backend, different domains)
@@ -451,11 +515,12 @@ def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], boo
         seen_pairs.add(pair)
         jobs.append(job)
 
-    # Post-filter by skills (catches Remotive and any source that doesn't support native filtering)
-    if skills:
+    # Post-filter by specialty keywords (catches Remotive and sources without native skill filter)
+    specialties = _specialty_list(skills)
+    if specialties:
         before = len(jobs)
-        jobs = [j for j in jobs if _matches_skills(j, skills)]
-        logger.info("Skills filter: kept %d of %d jobs (required: %s)", len(jobs), before, skills)
+        jobs = [j for j in jobs if _matches_skills(j, specialties)]
+        logger.info("Specialty filter: kept %d of %d jobs (required: %s)", len(jobs), before, specialties)
 
     logger.info("Total unique jobs: %d (from %d raw)", len(jobs), len(raw))
     return jobs, used_fallback
