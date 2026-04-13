@@ -20,7 +20,8 @@ from database import (get_jobs_to_apply, count_jobs_to_apply, get_job_link,
                       reset_scores_selective,
                       save_job, get_user_lang, set_user_lang,
                       get_last_scrape, set_last_scrape, get_applied_jobs,
-                      delete_expired_jobs, get_resume)
+                      delete_expired_jobs, get_resume,
+                      get_user_skills, set_user_skills)
 from scraper import search_jobs
 from resume_parser import parse_resume, save_resume, load_resume, validate
 from ai_score import evaluate
@@ -35,6 +36,7 @@ TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 ADMIN_CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
 
 ASK_CITY = 0
+ASK_SKILLS = 1
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +226,11 @@ async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
     if not has_resume:
         await msg.reply_text(t(lang_code, "scrape_no_resume_hint"))
 
-    await msg.reply_text(t(lang_code, "scrape_searching", city=city))
+    skills = get_user_skills(chat_id)
+    search_msg = t(lang_code, "scrape_searching", city=city)
+    if skills:
+        search_msg += "\n" + t(lang_code, "scrape_skills_active", skills=", ".join(skills))
+    await msg.reply_text(search_msg)
     loop = asyncio.get_running_loop()
     jobs, used_fallback = await loop.run_in_executor(None, lambda: search_jobs(city, chat_id))
 
@@ -450,6 +456,55 @@ async def cmd_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @admin_only
+async def cmd_filters(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Show current skills filter and offer to change or clear it."""
+    chat_id = update.effective_chat.id
+    lang_code = _lang(update)
+    skills = get_user_skills(chat_id)
+    if skills:
+        text = t(lang_code, "filters_current", skills=", ".join(skills))
+    else:
+        text = t(lang_code, "filters_current_none")
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton(t(lang_code, "btn_set_skills"),    callback_data="filters:set"),
+        InlineKeyboardButton(t(lang_code, "btn_clear_filters"), callback_data="filters:clear"),
+    ]])
+    await update.message.reply_text(text, reply_markup=keyboard)
+    return ConversationHandler.END
+
+
+@admin_only
+async def on_filters_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle Set / Clear button from /filters."""
+    query = update.callback_query
+    await query.answer()
+    chat_id = query.message.chat.id
+    lang_code = get_user_lang(chat_id)
+    action = query.data.split(":")[1]
+    if action == "clear":
+        set_user_skills(chat_id, [])
+        await query.message.reply_text(t(lang_code, "filters_cleared"))
+        return ConversationHandler.END
+    # action == "set" — ask user to type skills
+    await query.message.reply_text(t(lang_code, "filters_ask_skills"))
+    return ASK_SKILLS
+
+
+async def filters_receive_skills(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Save skills typed by user."""
+    chat_id = update.effective_chat.id
+    lang_code = _lang(update)
+    raw = update.message.text.strip()
+    skills = [s.strip() for s in raw.split(",") if s.strip()]
+    if not skills:
+        await update.message.reply_text(t(lang_code, "filters_invalid"))
+        return ASK_SKILLS
+    set_user_skills(chat_id, skills)
+    await update.message.reply_text(t(lang_code, "filters_saved", skills=", ".join(skills)))
+    return ConversationHandler.END
+
+
+@admin_only
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(t(_lang(update), "stop_msg"))
     await context.application.stop()
@@ -634,6 +689,7 @@ async def _set_commands(app: Application) -> None:
         ("resume",   "View current resume"),
         ("stats",    "Statistics"),
         ("help",     "Command reference"),
+        ("filters", "Set skills filter for job search"),
         ("language", "Change language"),
     ])
     if WEBAPP_URL:
@@ -696,6 +752,18 @@ def main():
     app.add_handler(CommandHandler("backup",   cmd_backup))
     app.add_handler(CommandHandler("stop",     cmd_stop))
     app.add_handler(scrape_conv)
+
+    filters_conv = ConversationHandler(
+        entry_points=[CommandHandler("filters", cmd_filters)],
+        states={
+            ASK_SKILLS: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, filters_receive_skills),
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
+    )
+    app.add_handler(filters_conv)
+    app.add_handler(CallbackQueryHandler(on_filters_action, pattern=r"^filters:"))
     app.add_handler(MessageHandler(filters.Document.ALL, cmd_resume_upload))
 
     # Inline button handlers — one per callback type for clarity

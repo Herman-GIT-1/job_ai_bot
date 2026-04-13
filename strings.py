@@ -128,6 +128,16 @@ TEXTS: dict[str, dict[str, str]] = {
             "/language — change language\n"
             "/stop — stop the bot (admin only)"
         ),
+        # --- filters ---
+        "filters_current_none": "🔍 Skills filter: not set.\n\nAll jobs will be shown regardless of tech stack.",
+        "filters_current": "🔍 Skills filter: {skills}\n\nOnly jobs mentioning these skills will be shown.",
+        "filters_ask_skills": "Type skills separated by commas (e.g. Python, SQL, React):\n\n/cancel — keep current settings.",
+        "filters_saved": "✅ Skills filter saved: {skills}\n\nNext /scrape will search for jobs requiring these skills.",
+        "filters_cleared": "🗑️ Filters cleared. Next /scrape will show all jobs.",
+        "filters_invalid": "Please enter at least one skill name.",
+        "btn_set_skills": "🔧 Set skills",
+        "btn_clear_filters": "🗑️ Clear filters",
+        "scrape_skills_active": "Active skills filter: {skills}",
         # --- mini app ---
         "webapp_btn": "🃏 Browse Jobs",
         "webapp_open": "Tap the button below to browse jobs with swipe cards:",
@@ -264,6 +274,16 @@ TEXTS: dict[str, dict[str, str]] = {
             "/language — сменить язык\n"
             "/stop — остановить бота (только admin)"
         ),
+        # --- filters ---
+        "filters_current_none": "🔍 Фильтр навыков: не задан.\n\nБудут показаны все вакансии.",
+        "filters_current": "🔍 Фильтр навыков: {skills}\n\nБудут показаны только вакансии с этими навыками.",
+        "filters_ask_skills": "Введи навыки через запятую (например: Python, SQL, React):\n\n/cancel — оставить текущие настройки.",
+        "filters_saved": "✅ Фильтр навыков сохранён: {skills}\n\nСледующий /scrape будет искать вакансии с этими навыками.",
+        "filters_cleared": "🗑️ Фильтры сброшены. Следующий /scrape покажет все вакансии.",
+        "filters_invalid": "Введи хотя бы один навык.",
+        "btn_set_skills": "🔧 Задать навыки",
+        "btn_clear_filters": "🗑️ Сбросить фильтры",
+        "scrape_skills_active": "Активный фильтр навыков: {skills}",
         # --- mini app ---
         "webapp_btn": "🃏 Смотреть вакансии",
         "webapp_open": "Нажми кнопку ниже, чтобы листать вакансии карточками:",
@@ -400,6 +420,16 @@ TEXTS: dict[str, dict[str, str]] = {
             "/language — zmień język\n"
             "/stop — zatrzymaj bota (tylko admin)"
         ),
+        # --- filters ---
+        "filters_current_none": "🔍 Filtr umiejętności: nie ustawiony.\n\nWszystkie oferty będą wyświetlane.",
+        "filters_current": "🔍 Filtr umiejętności: {skills}\n\nPokazywane będą tylko oferty wymagające tych umiejętności.",
+        "filters_ask_skills": "Wpisz umiejętności oddzielone przecinkami (np. Python, SQL, React):\n\n/cancel — zachowaj obecne ustawienia.",
+        "filters_saved": "✅ Filtr umiejętności zapisany: {skills}\n\nNastępne /scrape będzie szukać ofert z tymi umiejętnościami.",
+        "filters_cleared": "🗑️ Filtry wyczyszczone. Następne /scrape pokaże wszystkie oferty.",
+        "filters_invalid": "Wpisz co najmniej jedną umiejętność.",
+        "btn_set_skills": "🔧 Ustaw umiejętności",
+        "btn_clear_filters": "🗑️ Wyczyść filtry",
+        "scrape_skills_active": "Aktywny filtr umiejętności: {skills}",
         # --- mini app ---
         "webapp_btn": "🃏 Przeglądaj oferty",
         "webapp_open": "Kliknij przycisk poniżej, aby przeglądać oferty kartami:",

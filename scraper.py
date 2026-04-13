@@ -125,7 +125,7 @@ Return ONLY a valid JSON object. No explanation."""
             categories = [c for c in categories if c in REMOTIVE_CATEGORIES] or ["software-dev"]
             return queries, False, categories
     except Exception as e:
-        logger.warning("Не удалось сгенерировать запросы через AI: %s", e)
+        logger.warning("Failed to generate queries via AI: %s", e)
 
     return ["junior developer", "intern IT", "junior python", "stażysta programista"], True, ["software-dev"]
 
@@ -147,14 +147,20 @@ def _extract_tech(text: str) -> str:
     return ", ".join(found[:6])
 
 
-def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
+def _matches_skills(job: dict, skills: list[str]) -> bool:
+    """Return True if job mentions at least one of the required skills."""
+    text = (job.get("tech_stack", "") + " " + job.get("description", "")).lower()
+    return any(s.lower() in text for s in skills)
+
+
+def _fetch_adzuna(queries: list[str], city: str, skills: list[str] = None) -> list[dict]:
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
-        logger.info("Нет ADZUNA_APP_ID или ADZUNA_APP_KEY — источник пропущен.")
+        logger.info("No ADZUNA_APP_ID or ADZUNA_APP_KEY — source skipped.")
         return []
 
     jobs = []
     for query in queries:
-        logger.info("[Adzuna] Ищу: %s", query)
+        logger.info("[Adzuna] Searching: %s", query)
         # If the query already targets juniors (e.g. "junior financial analyst"),
         # the search engine already filtered by seniority — don't double-filter by title.
         # Only exclude irrelevant job categories. Otherwise apply the full _is_junior check.
@@ -167,6 +173,9 @@ def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
             "where": city,
             "content-type": "application/json",
         }
+        # Append first skill to query so Adzuna ranks relevant results higher
+        if skills:
+            params["what"] = query + " " + skills[0]
         try:
             r = requests.get(ADZUNA_BASE_URL, params=params, timeout=15)
             r.raise_for_status()
@@ -197,7 +206,7 @@ def _fetch_adzuna(queries: list[str], city: str) -> list[dict]:
                     "salary_currency": "GBP" if offer.get("salary_min") else None,
                 })
         except Exception as e:
-            logger.error("[Adzuna] Ошибка '%s': %s", query, e)
+            logger.error("[Adzuna] Error on query '%s': %s", query, e)
         time.sleep(0.5)  # avoid hammering Adzuna between queries
 
     return jobs
@@ -212,28 +221,27 @@ def _city_to_nfj_slug(city: str) -> str:
     return slug
 
 
-def _fetch_nofluffjobs(city: str) -> list[dict]:
+def _fetch_nofluffjobs(city: str, skills: list[str] = None) -> list[dict]:
     """NoFluffJobs — Polish IT jobs, no API key needed."""
     city_slug = _city_to_nfj_slug(city)
-    logger.info("[NoFluffJobs] Ищу junior/intern в %s (slug: %s)...", city, city_slug)
+    logger.info("[NoFluffJobs] Searching junior/intern in %s (slug: %s)...", city, city_slug)
 
     jobs = []
     page = 1
     total_pages = 1
 
     while page <= total_pages and page <= 5:  # cap at 250 jobs
-        body = {
-            "criteriaSearch": {"city": [city_slug], "requirement": ["junior", "intern", "trainee"]},
-            "page": page,
-            "pageSize": 50,
-        }
+        criteria: dict = {"city": [city_slug], "requirement": ["junior", "intern", "trainee"]}
+        if skills:
+            criteria["skill"] = [s.lower() for s in skills]
+        body = {"criteriaSearch": criteria, "page": page, "pageSize": 50}
         try:
             r = requests.post(NFJ_SEARCH_URL, headers=NFJ_HEADERS, json=body, timeout=15)
             r.raise_for_status()
             data = r.json()
             if page == 1:
                 total_pages = data.get("totalPages", 1)
-                logger.info("[NoFluffJobs] Всего: %d вакансий, %d стр.", data.get("totalCount", 0), total_pages)
+                logger.info("[NoFluffJobs] Total: %d jobs, %d pages.", data.get("totalCount", 0), total_pages)
 
             for p in data.get("postings", []):
                 seniority = [s.lower() for s in (p.get("seniority") or [])]
@@ -268,11 +276,11 @@ def _fetch_nofluffjobs(city: str) -> list[dict]:
                     "salary_currency": salary.get("currency", "PLN") if salary.get("from") else None,
                 })
         except Exception as e:
-            logger.error("[NoFluffJobs] Ошибка стр. %d: %s", page, e)
+            logger.error("[NoFluffJobs] Error on page %d: %s", page, e)
             break
         page += 1
 
-    logger.info("[NoFluffJobs] Найдено подходящих: %d", len(jobs))
+    logger.info("[NoFluffJobs] Found %d matching jobs.", len(jobs))
     return jobs
 
 
@@ -283,7 +291,7 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
     seen_links: set[str] = set()
 
     for category in categories:
-        logger.info("[Remotive] Ищу категорию: %s...", category)
+        logger.info("[Remotive] Searching category: %s...", category)
         try:
             r = requests.get(
                 REMOTIVE_URL,
@@ -293,7 +301,7 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
             r.raise_for_status()
             offers = r.json().get("jobs", [])
         except Exception as e:
-            logger.error("[Remotive] Ошибка категории '%s': %s", category, e)
+            logger.error("[Remotive] Error on category '%s': %s", category, e)
             continue
 
         for offer in offers:
@@ -319,32 +327,31 @@ def _fetch_remotive(categories: list[str]) -> list[dict]:
                 "salary_currency": None,
             })
 
-    logger.info("[Remotive] Найдено подходящих: %d", len(jobs))
+    logger.info("[Remotive] Found %d matching jobs.", len(jobs))
     return jobs
 
 
-def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str) -> list[dict]:
-    """Общий fetcher для justjoin.it и rocketjobs.pl — внутренний Next.js API.
-    Город не передаём в API (city-фильтр ненадёжен), фильтруем клиентски.
+def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str, skills: list[str] = None) -> list[dict]:
+    """Shared fetcher for justjoin.it and rocketjobs.pl (internal Next.js API).
+    City is not passed to the API (unreliable) — filtered client-side instead.
     """
     jobs = []
     seen_slugs: set[str] = set()
 
-    for page in range(1, 11):  # максимум 500 вакансий
+    for page in range(1, 11):  # cap at 500 jobs
         try:
-            r = requests.get(
-                api_url,
-                params={
-                    "experienceLevel[]": ["junior", "intern"],
-                    "limit": 50,
-                    "page": page,
-                },
-                timeout=15,
-            )
+            params = {
+                "experienceLevel[]": ["junior", "intern"],
+                "limit": 50,
+                "page": page,
+            }
+            if skills:
+                params["skill[]"] = [s.lower() for s in skills]
+            r = requests.get(api_url, params=params, timeout=15)
             r.raise_for_status()
             data = r.json()
         except Exception as e:
-            logger.error("[%s] Ошибка стр. %d: %s", source, page, e)
+            logger.error("[%s] Error on page %d: %s", source, page, e)
             break
 
         offers = data.get("data", [])
@@ -359,7 +366,7 @@ def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str) ->
             if any(w in title.lower() for w in _EXCLUDED_TITLE_KEYWORDS):
                 continue
 
-            # Принимаем вакансию если она remote ИЛИ в целевом городе
+            # Accept job if it is remote OR located in the target city
             is_remote = item.get("workplaceType") == "remote"
             offer_cities = [_city_to_nfj_slug(item.get("city") or "")]
             offer_cities += [_city_to_nfj_slug(loc.get("city", "")) for loc in (item.get("locations") or [])]
@@ -388,38 +395,43 @@ def _fetch_jjit_api(api_url: str, city_slug: str, source: str, base_url: str) ->
         if not (data.get("meta") or {}).get("next"):
             break
 
-    logger.info("[%s] Найдено подходящих: %d", source, len(jobs))
+    logger.info("[%s] Found %d matching jobs.", source, len(jobs))
     return jobs
 
 
-def _fetch_justjoin(city: str) -> list[dict]:
-    """JustJoin.it — внутренний Next.js API, авторизация не нужна."""
-    logger.info("[JustJoin] Ищу junior/intern в %s...", city)
-    return _fetch_jjit_api(JUSTJOIN_API, _city_to_nfj_slug(city), "JustJoin", "https://justjoin.it/job-offer/")
+def _fetch_justjoin(city: str, skills: list[str] = None) -> list[dict]:
+    """JustJoin.it — internal Next.js API, no auth required."""
+    logger.info("[JustJoin] Searching junior/intern in %s...", city)
+    return _fetch_jjit_api(JUSTJOIN_API, _city_to_nfj_slug(city), "JustJoin", "https://justjoin.it/job-offer/", skills)
 
 
-def _fetch_rocketjobs(city: str) -> list[dict]:
-    """RocketJobs — тот же API-бэкенд что и JustJoin (одна компания)."""
-    logger.info("[RocketJobs] Ищу junior/intern в %s...", city)
-    return _fetch_jjit_api(ROCKETJOBS_API, _city_to_nfj_slug(city), "RocketJobs", "https://rocketjobs.pl/job-offer/")
+def _fetch_rocketjobs(city: str, skills: list[str] = None) -> list[dict]:
+    """RocketJobs — same backend as JustJoin (same company)."""
+    logger.info("[RocketJobs] Searching junior/intern in %s...", city)
+    return _fetch_jjit_api(ROCKETJOBS_API, _city_to_nfj_slug(city), "RocketJobs", "https://rocketjobs.pl/job-offer/", skills)
 
 
 def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], bool]:
+    from database import get_user_skills
     try:
         resume_text = load_resume(chat_id)
     except FileNotFoundError:
         resume_text = ""
-        logger.warning("resume.txt не найдено — используются базовые запросы.")
+        logger.warning("Resume not found — using fallback queries.")
+
+    skills = get_user_skills(chat_id)
+    if skills:
+        logger.info("Skills filter active: %s", skills)
 
     queries, used_fallback, remotive_categories = build_queries(resume_text, city)
-    logger.info("Запросов для Adzuna: %d%s", len(queries), " (fallback)" if used_fallback else "")
-    logger.info("Категории Remotive: %s", remotive_categories)
+    logger.info("Adzuna queries: %d%s", len(queries), " (fallback)" if used_fallback else "")
+    logger.info("Remotive categories: %s", remotive_categories)
 
     raw = []
-    raw.extend(_fetch_adzuna(queries, city))
-    raw.extend(_fetch_nofluffjobs(city))
-    # raw.extend(_fetch_justjoin(city))
-    # raw.extend(_fetch_rocketjobs(city))
+    raw.extend(_fetch_adzuna(queries, city, skills))
+    raw.extend(_fetch_nofluffjobs(city, skills))
+    # raw.extend(_fetch_justjoin(city, skills))
+    # raw.extend(_fetch_rocketjobs(city, skills))
     raw.extend(_fetch_remotive(remotive_categories))
 
     # Deduplicate by link first, then by (title, company) to catch
@@ -439,5 +451,11 @@ def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], boo
         seen_pairs.add(pair)
         jobs.append(job)
 
-    logger.info("Итого уникальных вакансий: %d (из %d сырых)", len(jobs), len(raw))
+    # Post-filter by skills (catches Remotive and any source that doesn't support native filtering)
+    if skills:
+        before = len(jobs)
+        jobs = [j for j in jobs if _matches_skills(j, skills)]
+        logger.info("Skills filter: kept %d of %d jobs (required: %s)", len(jobs), before, skills)
+
+    logger.info("Total unique jobs: %d (from %d raw)", len(jobs), len(raw))
     return jobs, used_fallback

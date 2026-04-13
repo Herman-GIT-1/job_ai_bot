@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS last_scrape_at TIMESTAMPTZ",
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS score_reason TEXT",
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS scored_at TIMESTAMPTZ",
+                "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS filter_skills TEXT DEFAULT ''",
             ]:
                 cur.execute(ddl)
             # One-time cleanup: remove pending duplicate jobs with same (title, company, chat_id),
@@ -126,6 +127,30 @@ def set_user_lang(chat_id: int, lang: str) -> None:
                 "INSERT INTO user_settings (chat_id, language) VALUES (%s, %s)"
                 " ON CONFLICT (chat_id) DO UPDATE SET language = EXCLUDED.language",
                 (chat_id, lang),
+            )
+        conn.commit()
+
+
+def get_user_skills(chat_id: int) -> list[str]:
+    """Return user's skills filter as a list. Empty list = no filter."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT filter_skills FROM user_settings WHERE chat_id = %s", (chat_id,)
+            )
+            row = cur.fetchone()
+    raw = (row[0] if row else "") or ""
+    return [s.strip() for s in raw.split(",") if s.strip()]
+
+
+def set_user_skills(chat_id: int, skills: list[str]) -> None:
+    value = ", ".join(s.strip() for s in skills if s.strip())
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO user_settings (chat_id, filter_skills) VALUES (%s, %s)"
+                " ON CONFLICT (chat_id) DO UPDATE SET filter_skills = EXCLUDED.filter_skills",
+                (chat_id, value),
             )
         conn.commit()
 
