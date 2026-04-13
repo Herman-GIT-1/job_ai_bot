@@ -19,13 +19,13 @@ from urllib.parse import parse_qsl
 import requests as _requests
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 
 from config import DEFAULT_MIN_SCORE
 from database import (
     get_jobs_to_apply, get_interested_jobs, mark_applied, mark_interested,
     get_jobs_by_status, move_to_status, get_cover_letter,
-    get_stats, get_resume, get_user_lang,
+    get_stats, get_resume, get_user_lang, get_resume_file,
 )
 
 logger = logging.getLogger(__name__)
@@ -176,6 +176,7 @@ async def api_profile(chat_id: int = Depends(_auth)):
     resume = get_resume(chat_id) or ""
     lang = get_user_lang(chat_id)
     avg = stats.get("avg_score")
+    resume_file = get_resume_file(chat_id)
     return {
         "stats": {
             "total":      stats.get("total", 0),
@@ -185,10 +186,53 @@ async def api_profile(chat_id: int = Depends(_auth)):
             "skipped":    stats.get("skipped", 0),
             "interested": stats.get("interested", 0),
         },
-        "resume": resume[:600] if resume else "",
-        "resume_full_len": len(resume),
+        "resume_file_name": resume_file[1] if resume_file else None,
+        "has_resume": bool(resume),
         "lang": lang,
     }
+
+
+_RESUME_CONTENT_TYPES = {
+    "pdf":  "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "txt":  "text/plain; charset=utf-8",
+}
+
+
+@app.get("/api/resume/file")
+async def api_resume_file(chat_id: int = Depends(_auth)):
+    """Proxy original resume file from Telegram CDN to the client."""
+    row = get_resume_file(chat_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="No original resume file saved")
+    file_id, file_name = row
+
+    # Get temporary download path from Telegram
+    tg_resp = _requests.get(
+        f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
+        params={"file_id": file_id},
+        timeout=10,
+    )
+    tg_data = tg_resp.json()
+    if not tg_data.get("ok"):
+        raise HTTPException(status_code=502, detail="Telegram returned error for getFile")
+
+    file_path = tg_data["result"]["file_path"]
+    file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+
+    # Download and proxy — bot token stays server-side
+    file_r = _requests.get(file_url, timeout=30)
+    if not file_r.ok:
+        raise HTTPException(status_code=502, detail="Failed to download file from Telegram")
+
+    ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
+    content_type = _RESUME_CONTENT_TYPES.get(ext, "application/octet-stream")
+
+    return Response(
+        content=file_r.content,
+        media_type=content_type,
+        headers={"Content-Disposition": f'inline; filename="{file_name}"'},
+    )
 
 
 @app.post("/api/status")

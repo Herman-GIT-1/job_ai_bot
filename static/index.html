@@ -260,32 +260,51 @@ body {
   margin-top: 3px;
 }
 
-/* Resume block */
-.resume-text {
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--tg-theme-text-color, #3a3a3c);
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 160px;
-  overflow: hidden;
-  transition: max-height 0.3s ease;
-}
-.resume-text.expanded { max-height: 2000px; }
-.resume-toggle {
-  display: inline-block;
-  margin-top: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--tg-theme-button-color, #007aff);
-  cursor: pointer;
-}
+/* Resume block — styles moved inline below */
 .resume-empty {
   font-size: 14px;
   color: var(--tg-theme-hint-color, #8e8e93);
   text-align: center;
   padding: 12px 0;
 }
+.resume-file-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+}
+.resume-file-icon { font-size: 24px; flex-shrink: 0; }
+.resume-file-name {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.resume-file-open {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tg-theme-button-color, #007aff);
+  text-decoration: none;
+  padding: 5px 12px;
+  border: 1.5px solid var(--tg-theme-button-color, #007aff);
+  border-radius: 10px;
+}
+.resume-replace-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 11px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(142,142,147,0.15);
+  color: var(--tg-theme-text-color, #1c1c1e);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.resume-replace-btn:active { opacity: 0.65; }
 
 /* Settings rows */
 .setting-row {
@@ -586,43 +605,36 @@ function renderProfile(d) {
   const avg = s.avg_score != null ? s.avg_score + '/10' : '—';
   const langLabel = LANG_LABELS[d.lang] || d.lang;
 
-  const resumeBlock = d.resume
-    ? `<div class="resume-text" id="resume-text">${esc(d.resume)}${d.resume_full_len > 600 ? '…' : ''}</div>
-       ${d.resume_full_len > 600
-         ? `<span class="resume-toggle" onclick="toggleResume()">${d.resume_full_len} chars — Show more</span>`
-         : `<span class="setting-hint">${d.resume_full_len} chars</span>`
-       }`
-    : `<div class="resume-empty">No resume uploaded.<br>Send a .txt/.pdf/.docx file to the bot.</div>`;
+  let resumeBlock;
+  if (d.resume_file_name) {
+    const fileUrl = '/api/resume/file?init_data=' + encodeURIComponent(getInitData());
+    const ext = d.resume_file_name.split('.').pop().toUpperCase();
+    resumeBlock = `
+      <div class="resume-file-row">
+        <span class="resume-file-icon">📄</span>
+        <span class="resume-file-name">${esc(d.resume_file_name)}</span>
+        <a class="resume-file-open" href="${fileUrl}" target="_blank">${ext === 'TXT' ? 'Open' : 'View ' + ext}</a>
+      </div>
+      <button class="resume-replace-btn" onclick="replaceResume()">Replace resume</button>`;
+  } else if (d.has_resume) {
+    resumeBlock = `
+      <div class="resume-empty">Resume text saved (original file not available).</div>
+      <button class="resume-replace-btn" onclick="replaceResume()">Replace resume</button>`;
+  } else {
+    resumeBlock = `<div class="resume-empty">No resume uploaded.<br>Send a .txt / .pdf / .docx file to the bot.</div>`;
+  }
 
   profileView.innerHTML = `
     <!-- Stats -->
     <div class="profile-card">
       <div class="profile-card-title">Statistics</div>
       <div class="stats-grid">
-        <div class="stat-cell">
-          <div class="stat-value">${s.total}</div>
-          <div class="stat-label">Total</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-value">${s.scored}</div>
-          <div class="stat-label">Scored</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-value">${avg}</div>
-          <div class="stat-label">Avg score</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-value">${s.applied}</div>
-          <div class="stat-label">Applied</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-value">${s.interested}</div>
-          <div class="stat-label">Saved</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-value">${s.skipped}</div>
-          <div class="stat-label">Skipped</div>
-        </div>
+        <div class="stat-cell"><div class="stat-value">${s.total}</div><div class="stat-label">Total</div></div>
+        <div class="stat-cell"><div class="stat-value">${s.scored}</div><div class="stat-label">Scored</div></div>
+        <div class="stat-cell"><div class="stat-value">${avg}</div><div class="stat-label">Avg score</div></div>
+        <div class="stat-cell"><div class="stat-value">${s.applied}</div><div class="stat-label">Applied</div></div>
+        <div class="stat-cell"><div class="stat-value">${s.interested}</div><div class="stat-label">Saved</div></div>
+        <div class="stat-cell"><div class="stat-value">${s.skipped}</div><div class="stat-label">Skipped</div></div>
       </div>
     </div>
 
@@ -639,19 +651,13 @@ function renderProfile(d) {
         <span class="setting-label">Language</span>
         <span class="setting-value">${langLabel}</span>
       </div>
-      <div class="setting-hint">To change language or upload a new resume, use the bot commands /language and send a file.</div>
+      <div class="setting-hint">Change language via /language in the bot.</div>
     </div>
   `;
 }
 
-let resumeExpanded = false;
-function toggleResume() {
-  resumeExpanded = !resumeExpanded;
-  const el = document.getElementById('resume-text');
-  const btn = el && el.nextElementSibling;
-  if (!el || !btn) return;
-  el.classList.toggle('expanded', resumeExpanded);
-  btn.textContent = resumeExpanded ? 'Show less' : btn.textContent.replace('Show less', 'Show more');
+function replaceResume() {
+  tg.showAlert('To replace your resume — send a new .txt, .pdf or .docx file directly in the bot chat.');
 }
 
 // ── Tab renderers ──────────────────────────────────────────────────────────

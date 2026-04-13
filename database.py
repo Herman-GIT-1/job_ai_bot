@@ -80,6 +80,8 @@ CREATE TABLE IF NOT EXISTS user_settings (
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS score_reason TEXT",
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS scored_at TIMESTAMPTZ",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS filter_skills TEXT DEFAULT ''",
+                "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS resume_file_id TEXT",
+                "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS resume_file_name TEXT",
             ]:
                 cur.execute(ddl)
             # One-time cleanup: remove pending duplicate jobs with same (title, company, chat_id),
@@ -163,6 +165,31 @@ def get_resume(chat_id: int) -> str | None:
             )
             row = cur.fetchone()
     return row[0] if row else None
+
+
+def get_resume_file(chat_id: int) -> tuple[str, str] | None:
+    """Return (file_id, file_name) for the original uploaded resume, or None."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT resume_file_id, resume_file_name FROM user_settings WHERE chat_id = %s",
+                (chat_id,),
+            )
+            row = cur.fetchone()
+    if not row or not row[0]:
+        return None
+    return row[0], row[1]
+
+
+def set_resume_file(chat_id: int, file_id: str, file_name: str) -> None:
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE user_settings SET resume_file_id = %s, resume_file_name = %s"
+                " WHERE chat_id = %s",
+                (file_id, file_name, chat_id),
+            )
+        conn.commit()
 
 
 def get_last_scrape(chat_id: int):

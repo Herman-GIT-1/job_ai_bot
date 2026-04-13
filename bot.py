@@ -21,7 +21,8 @@ from database import (get_jobs_to_apply, count_jobs_to_apply, get_job_link,
                       save_job, get_user_lang, set_user_lang,
                       get_last_scrape, set_last_scrape, get_applied_jobs,
                       delete_expired_jobs, get_resume,
-                      get_user_skills, set_user_skills)
+                      get_user_skills, set_user_skills,
+                      set_resume_file)
 from scraper import search_jobs
 from resume_parser import parse_resume, save_resume, load_resume, validate
 from ai_score import evaluate
@@ -357,6 +358,7 @@ async def cmd_resume_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = parse_resume(bytes(file_bytes), filename)
         validate(text)
         save_resume(text, chat_id)
+        set_resume_file(chat_id, doc.file_id, filename)
         await update.message.reply_text(t(lang_code, "resume_saved", chars=len(text)))
         await update.message.reply_text(
             t(lang_code, "onboard_ask_city"), reply_markup=_city_keyboard()
