@@ -44,7 +44,7 @@ body {
   padding: 4px 0;
 }
 
-/* ── Tab bar ── */
+/* ── Tab bar (My List only) ── */
 .tabs {
   display: flex;
   background: var(--tg-theme-secondary-bg-color, #fff);
@@ -151,7 +151,7 @@ body {
 /* ── Action buttons ── */
 .actions {
   display: flex; gap: 10px;
-  padding: 10px 16px 20px; flex-shrink: 0;
+  padding: 10px 16px 10px; flex-shrink: 0;
 }
 .btn {
   flex: 1; padding: 14px 6px; border: none; border-radius: 14px;
@@ -171,6 +171,32 @@ body {
   pointer-events: none;
 }
 
+/* ── Bottom nav bar ── */
+.bottom-nav {
+  display: flex;
+  background: var(--tg-theme-secondary-bg-color, #fff);
+  border-top: 1px solid rgba(0,0,0,0.08);
+  padding: 6px 0 max(6px, env(safe-area-inset-bottom));
+  flex-shrink: 0;
+}
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  border: none;
+  background: none;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--tg-theme-hint-color, #8e8e93);
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 0.15s;
+}
+.nav-btn .nav-icon { font-size: 22px; line-height: 1; }
+.nav-btn.active { color: var(--tg-theme-button-color, #007aff); font-weight: 600; }
+
 /* ── My List view ── */
 .list-view {
   flex: 1;
@@ -182,6 +208,105 @@ body {
   gap: 12px;
 }
 .list-view.active { display: flex; }
+
+/* ── Profile view ── */
+.profile-view {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px;
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+}
+.profile-view.active { display: flex; }
+
+.profile-card {
+  background: var(--tg-theme-secondary-bg-color, #fff);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+.profile-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tg-theme-hint-color, #8e8e93);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+/* Stats grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+.stat-cell {
+  text-align: center;
+  padding: 10px 6px;
+  background: var(--tg-theme-bg-color, #f2f2f7);
+  border-radius: 12px;
+}
+.stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--tg-theme-button-color, #007aff);
+  line-height: 1.1;
+}
+.stat-label {
+  font-size: 11px;
+  color: var(--tg-theme-hint-color, #8e8e93);
+  margin-top: 3px;
+}
+
+/* Resume block */
+.resume-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--tg-theme-text-color, #3a3a3c);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 160px;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+.resume-text.expanded { max-height: 2000px; }
+.resume-toggle {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tg-theme-button-color, #007aff);
+  cursor: pointer;
+}
+.resume-empty {
+  font-size: 14px;
+  color: var(--tg-theme-hint-color, #8e8e93);
+  text-align: center;
+  padding: 12px 0;
+}
+
+/* Settings rows */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-label { font-size: 15px; }
+.setting-value {
+  font-size: 14px;
+  color: var(--tg-theme-hint-color, #8e8e93);
+}
+.setting-hint {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #8e8e93);
+  margin-top: 10px;
+  line-height: 1.5;
+}
 
 /* ── List item ── */
 .list-item {
@@ -210,22 +335,18 @@ body {
 }
 .item-btn:active { opacity: 0.65; }
 .item-btn:disabled { opacity: 0.45; cursor: default; }
-.item-btn-apply {
-  background: var(--tg-theme-button-color, #007aff);
-  color: var(--tg-theme-button-text-color, #fff);
-}
+.item-btn-apply   { background: var(--tg-theme-button-color, #007aff); color: var(--tg-theme-button-text-color, #fff); }
 .item-btn-interview { background: #e8f4fd; color: #1a73e8; }
 .item-btn-offer     { background: #e6f9ec; color: #1a7f3c; }
 .item-btn-reject    { background: #fdecea; color: #c0392b; }
 .item-btn-restore   { background: rgba(142,142,147,0.15); color: var(--tg-theme-text-color, #1c1c1e); }
+.item-btn-letter    { background: #f0eaff; color: #6c35de; }
 
 /* ── States ── */
 .state { text-align: center; padding: 32px 24px; max-width: 320px; margin: auto; }
 .state-emoji { font-size: 52px; margin-bottom: 14px; }
 .state h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
 .state p  { font-size: 15px; color: var(--tg-theme-hint-color, #8e8e93); line-height: 1.5; }
-
-.item-btn-letter { background: #f0eaff; color: #6c35de; }
 </style>
 </head>
 <body>
@@ -243,7 +364,13 @@ body {
   <span style="width:48px"></span>
 </div>
 
-<!-- Tab bar (shown only in list view) -->
+<!-- Profile view header -->
+<div class="header" id="header-profile" style="display:none">
+  <span class="header-title">Profile</span>
+  <span style="width:48px"></span>
+</div>
+
+<!-- Tab bar (shown only in My List view) -->
 <div class="tabs" id="tab-bar" style="display:none">
   <button class="tab active" data-tab="saved"        onclick="switchTab('saved')">💾<br>Saved</button>
   <button class="tab"        data-tab="applied"      onclick="switchTab('applied')">✅<br>Applied</button>
@@ -260,20 +387,31 @@ body {
 <!-- My list -->
 <div class="list-view" id="list-view"></div>
 
-<!-- Action buttons -->
+<!-- Profile view -->
+<div class="profile-view" id="profile-view"></div>
+
+<!-- Action buttons (cards view only) -->
 <div class="actions" id="actions" style="display:none">
   <button class="btn btn-skip" onclick="doAction('skip')">❌<br>Skip</button>
   <button class="btn btn-list" onclick="openMyList()">📋<br>My list</button>
   <button class="btn btn-save" onclick="doAction('save')">💾<br>Save</button>
 </div>
 
+<!-- Bottom nav bar -->
+<div class="bottom-nav" id="bottom-nav">
+  <button class="nav-btn active" id="nav-cards" onclick="showView('cards')">
+    <span class="nav-icon">🃏</span>Cards
+  </button>
+  <button class="nav-btn" id="nav-profile" onclick="showView('profile')">
+    <span class="nav-icon">👤</span>Profile
+  </button>
+</div>
 
 <script>
 const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand();
 
-// iOS: initData arrives via URL hash; tg.initData may be empty on first tick
 function getInitData() {
   if (tg.initData) return tg.initData;
   const hash = location.hash.slice(1);
@@ -298,15 +436,19 @@ let frontCard = null;
 let dragStartX = 0, dragDeltaX = 0;
 let isDragging = false;
 let inListView = false;
+let currentView = 'cards';  // 'cards' | 'profile'
 let currentTab = 'saved';
 
-const deck        = document.getElementById('deck');
-const listView    = document.getElementById('list-view');
-const actions     = document.getElementById('actions');
-const counter     = document.getElementById('counter');
-const headerCards = document.getElementById('header-cards');
-const headerList  = document.getElementById('header-list');
-const tabBar      = document.getElementById('tab-bar');
+const deck          = document.getElementById('deck');
+const listView      = document.getElementById('list-view');
+const profileView   = document.getElementById('profile-view');
+const actions       = document.getElementById('actions');
+const counter       = document.getElementById('counter');
+const headerCards   = document.getElementById('header-cards');
+const headerList    = document.getElementById('header-list');
+const headerProfile = document.getElementById('header-profile');
+const tabBar        = document.getElementById('tab-bar');
+const bottomNav     = document.getElementById('bottom-nav');
 
 // ── API ────────────────────────────────────────────────────────────────────
 async function apiFetch(path, method = 'GET', body = null) {
@@ -320,6 +462,35 @@ async function apiFetch(path, method = 'GET', body = null) {
     throw new Error('HTTP ' + res.status + ': ' + detail);
   }
   return res.json();
+}
+
+// ── View switching ─────────────────────────────────────────────────────────
+function showView(view) {
+  currentView = view;
+
+  // Reset My List if open
+  if (inListView) {
+    inListView = false;
+    listView.classList.remove('active');
+    listView.innerHTML = '';
+    headerList.style.display  = 'none';
+    tabBar.style.display      = 'none';
+  }
+
+  const isCards   = view === 'cards';
+  const isProfile = view === 'profile';
+
+  headerCards.style.display   = isCards   ? 'flex' : 'none';
+  headerProfile.style.display = isProfile ? 'flex' : 'none';
+  deck.style.display          = isCards   ? ''     : 'none';
+  actions.style.display       = isCards   ? 'flex' : 'none';
+  profileView.classList.toggle('active', isProfile);
+  bottomNav.style.display     = 'flex';
+
+  document.getElementById('nav-cards').classList.toggle('active', isCards);
+  document.getElementById('nav-profile').classList.toggle('active', isProfile);
+
+  if (isProfile) loadProfile();
 }
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
@@ -353,11 +524,14 @@ async function loadJobs() {
 // ── My List view ───────────────────────────────────────────────────────────
 function openMyList(tab) {
   inListView = true;
-  deck.style.display        = 'none';
-  actions.style.display     = 'none';
-  headerCards.style.display = 'none';
-  headerList.style.display  = 'flex';
-  tabBar.style.display      = 'flex';
+  deck.style.display          = 'none';
+  profileView.classList.remove('active');
+  actions.style.display       = 'none';
+  headerCards.style.display   = 'none';
+  headerProfile.style.display = 'none';
+  headerList.style.display    = 'flex';
+  tabBar.style.display        = 'flex';
+  bottomNav.style.display     = 'none';
   listView.classList.add('active');
   switchTab(tab || currentTab);
 }
@@ -365,12 +539,10 @@ function openMyList(tab) {
 function closeMyList() {
   inListView = false;
   listView.classList.remove('active');
-  listView.innerHTML        = '';
-  headerCards.style.display = 'flex';
-  headerList.style.display  = 'none';
-  tabBar.style.display      = 'none';
-  deck.style.display        = '';
-  actions.style.display     = 'flex';
+  listView.innerHTML = '';
+  headerList.style.display = 'none';
+  tabBar.style.display     = 'none';
+  showView(currentView);
 }
 
 function switchTab(tab) {
@@ -396,6 +568,92 @@ async function loadTab(tab) {
   }
 }
 
+// ── Profile view ───────────────────────────────────────────────────────────
+const LANG_LABELS = { en: '🇬🇧 English', ru: '🇷🇺 Русский', pl: '🇵🇱 Polski' };
+
+async function loadProfile() {
+  profileView.innerHTML = '<div class="state"><div class="state-emoji">⏳</div><h2>Loading…</h2></div>';
+  try {
+    const d = await apiFetch('/api/profile');
+    renderProfile(d);
+  } catch (e) {
+    profileView.innerHTML = `<div class="state"><div class="state-emoji">❌</div><h2>Error</h2><p>${esc(e.message)}</p></div>`;
+  }
+}
+
+function renderProfile(d) {
+  const s = d.stats;
+  const avg = s.avg_score != null ? s.avg_score + '/10' : '—';
+  const langLabel = LANG_LABELS[d.lang] || d.lang;
+
+  const resumeBlock = d.resume
+    ? `<div class="resume-text" id="resume-text">${esc(d.resume)}${d.resume_full_len > 600 ? '…' : ''}</div>
+       ${d.resume_full_len > 600
+         ? `<span class="resume-toggle" onclick="toggleResume()">${d.resume_full_len} chars — Show more</span>`
+         : `<span class="setting-hint">${d.resume_full_len} chars</span>`
+       }`
+    : `<div class="resume-empty">No resume uploaded.<br>Send a .txt/.pdf/.docx file to the bot.</div>`;
+
+  profileView.innerHTML = `
+    <!-- Stats -->
+    <div class="profile-card">
+      <div class="profile-card-title">Statistics</div>
+      <div class="stats-grid">
+        <div class="stat-cell">
+          <div class="stat-value">${s.total}</div>
+          <div class="stat-label">Total</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">${s.scored}</div>
+          <div class="stat-label">Scored</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">${avg}</div>
+          <div class="stat-label">Avg score</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">${s.applied}</div>
+          <div class="stat-label">Applied</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">${s.interested}</div>
+          <div class="stat-label">Saved</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-value">${s.skipped}</div>
+          <div class="stat-label">Skipped</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resume -->
+    <div class="profile-card">
+      <div class="profile-card-title">Resume</div>
+      ${resumeBlock}
+    </div>
+
+    <!-- Settings -->
+    <div class="profile-card">
+      <div class="profile-card-title">Settings</div>
+      <div class="setting-row">
+        <span class="setting-label">Language</span>
+        <span class="setting-value">${langLabel}</span>
+      </div>
+      <div class="setting-hint">To change language or upload a new resume, use the bot commands /language and send a file.</div>
+    </div>
+  `;
+}
+
+let resumeExpanded = false;
+function toggleResume() {
+  resumeExpanded = !resumeExpanded;
+  const el = document.getElementById('resume-text');
+  const btn = el && el.nextElementSibling;
+  if (!el || !btn) return;
+  el.classList.toggle('expanded', resumeExpanded);
+  btn.textContent = resumeExpanded ? 'Show less' : btn.textContent.replace('Show less', 'Show more');
+}
+
 // ── Tab renderers ──────────────────────────────────────────────────────────
 const TAB_EMPTY = {
   saved:        ['📋', 'Nothing saved yet', 'Swipe right or press Save to add vacancies here.'],
@@ -419,7 +677,6 @@ function buildListItem(tab, job) {
   const item = document.createElement('div');
   item.className = 'list-item';
   item.id = 'item-' + job.id;
-
   const actionsHtml = buildItemActions(tab, job);
   item.innerHTML = `
     <div class="list-item-top">
@@ -504,13 +761,11 @@ async function moveStatus(jobId, status, btn) {
   try {
     await apiFetch('/api/status', 'POST', { job_id: jobId, status });
     if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
-    // Animate removal
     row.style.transition = 'opacity 0.25s, transform 0.25s';
     row.style.opacity    = '0';
     row.style.transform  = 'scale(0.92)';
     setTimeout(() => {
       row.remove();
-      // Show empty state if no items left
       if (listView.querySelectorAll('.list-item').length === 0) {
         const [emoji, title, text] = TAB_EMPTY[currentTab] || ['📭', 'Empty', ''];
         listView.innerHTML = `<div class="state"><div class="state-emoji">${emoji}</div><h2>${title}</h2><p>${text}</p></div>`;
@@ -534,7 +789,7 @@ function updateCounter() {
 }
 
 function renderDeck() {
-  if (inListView) return;
+  if (inListView || currentView !== 'cards') return;
   deck.innerHTML = '';
   if (cur >= jobs.length) {
     setSwipeButtonsDisabled(true);

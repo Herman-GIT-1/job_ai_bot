@@ -25,6 +25,7 @@ from config import DEFAULT_MIN_SCORE
 from database import (
     get_jobs_to_apply, get_interested_jobs, mark_applied, mark_interested,
     get_jobs_by_status, move_to_status, get_cover_letter,
+    get_stats, get_resume, get_user_lang,
 )
 
 logger = logging.getLogger(__name__)
@@ -167,6 +168,27 @@ async def api_letter(request: Request, chat_id: int = Depends(_auth)):
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, _send)
     return {"ok": True}
+
+
+@app.get("/api/profile")
+async def api_profile(chat_id: int = Depends(_auth)):
+    stats = get_stats(chat_id)
+    resume = get_resume(chat_id) or ""
+    lang = get_user_lang(chat_id)
+    avg = stats.get("avg_score")
+    return {
+        "stats": {
+            "total":      stats.get("total", 0),
+            "scored":     stats.get("scored", 0),
+            "avg_score":  round(float(avg), 1) if avg else None,
+            "applied":    stats.get("applied", 0),
+            "skipped":    stats.get("skipped", 0),
+            "interested": stats.get("interested", 0),
+        },
+        "resume": resume[:600] if resume else "",
+        "resume_full_len": len(resume),
+        "lang": lang,
+    }
 
 
 @app.post("/api/status")
