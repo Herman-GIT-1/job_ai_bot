@@ -17,6 +17,7 @@ from config import (CITIES, SCRAPE_COOLDOWN_MINUTES, JOBS_PAGE_SIZE,
 from database import (get_jobs_to_apply, count_jobs_to_apply, get_job_link,
                       get_cover_letter, mark_applied, update_job_status,
                       get_stats, get_jobs, update_job, reset_scores,
+                      reset_scores_selective,
                       save_job, get_user_lang, set_user_lang,
                       get_last_scrape, set_last_scrape, get_applied_jobs,
                       delete_expired_jobs, get_resume)
@@ -270,8 +271,11 @@ async def cmd_score(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_rescore(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     lang_code = _lang(update)
-    reset_scores(chat_id)
-    await update.message.reply_text(t(lang_code, "rescore_start"))
+    count = reset_scores_selective(chat_id)
+    if count == 0:
+        await update.message.reply_text(t(lang_code, "rescore_nothing"))
+        return
+    await update.message.reply_text(t(lang_code, "rescore_start", count=count))
     await _run_score(update.message, chat_id, lang_code)
 
 
@@ -517,8 +521,11 @@ async def on_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif action == "score":
         await _run_score(query.message, chat_id, lang_code)
     elif action == "rescore":
-        reset_scores(chat_id)
-        await query.message.reply_text(t(lang_code, "rescore_start"))
+        count = reset_scores_selective(chat_id)
+        if count == 0:
+            await query.message.reply_text(t(lang_code, "rescore_nothing"))
+            return
+        await query.message.reply_text(t(lang_code, "rescore_start", count=count))
         await _run_score(query.message, chat_id, lang_code)
     elif action == "help":
         await query.message.reply_text(t(lang_code, "help_text"))

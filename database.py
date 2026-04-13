@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS resume_text TEXT",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS last_scrape_at TIMESTAMPTZ",
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS score_reason TEXT",
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS scored_at TIMESTAMPTZ",
             ]:
                 cur.execute(ddl)
             # One-time cleanup: remove pending duplicate jobs with same (title, company, chat_id),
@@ -349,7 +350,8 @@ def update_job(job_id: int, chat_id: int, score: int, letter: str, reason: str =
     with _get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE jobs SET score = %s, cover_letter = %s, score_reason = %s"
+                "UPDATE jobs SET score = %s, cover_letter = %s, score_reason = %s,"
+                " scored_at = NOW()"
                 " WHERE id = %s AND chat_id = %s",
                 (score, letter, reason or None, job_id, chat_id),
             )
@@ -383,11 +385,35 @@ def reset_scores(chat_id: int) -> None:
     with _get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "UPDATE jobs SET score = NULL, cover_letter = NULL"
+                "UPDATE jobs SET score = NULL, cover_letter = NULL, score_reason = NULL"
                 " WHERE chat_id = %s AND applied = 0",
                 (chat_id,),
             )
         conn.commit()
+
+
+def reset_scores_selective(chat_id: int, max_score: int = 5, min_age_days: int = 7) -> int:
+    """Reset scores only for pending jobs where score <= max_score AND scored
+    more than min_age_days ago (or never scored_at recorded = legacy rows).
+    Returns the number of jobs reset."""
+    try:
+        with _get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE jobs"
+                    " SET score = NULL, cover_letter = NULL, score_reason = NULL"
+                    " WHERE chat_id = %s AND applied = 0"
+                    "   AND score IS NOT NULL AND score <= %s"
+                    "   AND (scored_at IS NULL"
+                    "        OR scored_at < NOW() - INTERVAL '%s days')",
+                    (chat_id, max_score, min_age_days),
+                )
+                count = cur.rowcount
+            conn.commit()
+        return count
+    except Exception as e:
+        logger.error("reset_scores_selective error: %s", e)
+        return 0
 
 
 def delete_expired_jobs(days: int = 21) -> int:

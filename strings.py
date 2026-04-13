@@ -50,7 +50,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "score_done": "Done. Scored: {total} jobs.",
         "score_high_alert": "⭐ {high} job(s) scored ≥ 8 — tap the button to browse!",
         "score_no_good_jobs": "No jobs met the minimum score threshold. Try /scrape to fetch more.",
-        "rescore_start": "Scores reset. Re-scoring now…",
+        "rescore_start": "Re-scoring {count} job(s) with score ≤ 5 (older than 7 days)…",
+        "rescore_nothing": "Nothing to re-score. No jobs with score ≤ 5 older than 7 days.",
         # --- jobs ---
         "jobs_none": "No new jobs with score ≥ {min_score}.",
         "jobs_found": "Jobs found (score ≥ {min_score}): {count}",
@@ -185,7 +186,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "score_done": "Готово. Оценено вакансий: {total}.",
         "score_high_alert": "⭐ {high} вакансий с оценкой ≥ 8 — нажми кнопку, чтобы открыть!",
         "score_no_good_jobs": "Ни одна вакансия не прошла минимальный порог оценки. Попробуй /scrape.",
-        "rescore_start": "Оценки сброшены. Запускаю оценку заново…",
+        "rescore_start": "Переоцениваю {count} вакансий с оценкой ≤ 5 (старше 7 дней)…",
+        "rescore_nothing": "Нечего переоценивать. Нет вакансий с оценкой ≤ 5 старше 7 дней.",
         # --- jobs ---
         "jobs_none": "Нет новых вакансий с оценкой ≥ {min_score}.",
         "jobs_found": "Найдено вакансий (score ≥ {min_score}): {count}",
@@ -320,7 +322,8 @@ TEXTS: dict[str, dict[str, str]] = {
         "score_done": "Gotowe. Oceniono ofert: {total}.",
         "score_high_alert": "⭐ {high} ofert z oceną ≥ 8 — naciśnij przycisk, aby przeglądać!",
         "score_no_good_jobs": "Żadna oferta nie spełniła minimalnego progu. Spróbuj /scrape.",
-        "rescore_start": "Oceny zresetowane. Ponowna ocena…",
+        "rescore_start": "Ponowna ocena {count} ofert z wynikiem ≤ 5 (starszych niż 7 dni)…",
+        "rescore_nothing": "Brak ofert do ponownej oceny. Brak ofert z wynikiem ≤ 5 starszych niż 7 dni.",
         # --- jobs ---
         "jobs_none": "Brak nowych ofert z oceną ≥ {min_score}.",
         "jobs_found": "Znalezione oferty (ocena ≥ {min_score}): {count}",
