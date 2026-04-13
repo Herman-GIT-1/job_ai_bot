@@ -90,15 +90,12 @@ def allowed(func):
 
 ---
 
-### P8 · Job expiry cleanup
+### P8 · Job expiry cleanup ✓ Done
 
-- **`database.py`**: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`
-- Railway cron (или PTB JobQueue раз в сутки):
-  ```sql
-  DELETE FROM jobs WHERE applied = 0 AND score IS NULL
-  AND created_at < NOW() - INTERVAL '30 days'
-  ```
-- Предотвращает бесконечный рост таблицы у активных пользователей
+- `created_at TIMESTAMPTZ` колонка в `jobs`
+- `delete_expired_jobs(days=21)` в `database.py` — удаляет `applied=0 AND score IS NULL`
+  (оценённые вакансии не трогает — пользователь мог ещё не посмотреть)
+- PTB `job_queue.run_daily()` в 4:00 UTC в `bot.py`
 
 ---
 

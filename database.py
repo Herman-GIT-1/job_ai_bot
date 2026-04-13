@@ -417,12 +417,14 @@ def reset_scores_selective(chat_id: int, max_score: int = 5, min_age_days: int =
 
 
 def delete_expired_jobs(days: int = 21) -> int:
-    """Delete pending jobs (applied=0) older than `days` days. Returns number of deleted rows."""
+    """Delete unscored pending jobs (applied=0, score IS NULL) older than `days` days.
+    Scored jobs are kept regardless of age — user may still want to review them.
+    Returns number of deleted rows."""
     try:
         with _get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "DELETE FROM jobs WHERE applied = 0"
+                    "DELETE FROM jobs WHERE applied = 0 AND score IS NULL"
                     " AND created_at < NOW() - INTERVAL '%s days'",
                     (days,),
                 )
