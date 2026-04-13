@@ -472,6 +472,63 @@ body {
   margin-bottom: 12px;
   line-height: 1.45;
 }
+/* Custom keywords */
+.custom-kw-input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.custom-kw-input {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1.5px solid rgba(142,142,147,0.3);
+  border-radius: 10px;
+  background: var(--tg-theme-bg-color, #fff);
+  color: var(--tg-theme-text-color, #000);
+  font-size: 14px;
+  outline: none;
+  min-width: 0;
+}
+.custom-kw-input:focus { border-color: var(--tg-theme-button-color, #007aff); }
+.custom-kw-add-btn {
+  padding: 9px 16px;
+  background: var(--tg-theme-button-color, #007aff);
+  color: var(--tg-theme-button-text-color, #fff);
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.custom-kw-add-btn:active { opacity: 0.75; }
+.custom-kw-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.custom-kw-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  background: var(--tg-theme-button-color, #007aff);
+  color: var(--tg-theme-button-text-color, #fff);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.custom-kw-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+}
+.custom-kw-remove:active { opacity: 0.4; }
 
 /* Settings rows */
 .setting-row {
@@ -848,8 +905,9 @@ function replaceResume() {
 
 // ── Filters view ───────────────────────────────────────────────────────────
 let _filtersData   = null;
-let _selectedSpecs = new Set();  // category names + individual spec names
-let _expandedCats  = new Set();  // currently expanded categories
+let _selectedSpecs  = new Set();  // category names + individual spec names
+let _expandedCats   = new Set();  // currently expanded categories
+let _customKeywords = new Set();  // user-added free-form keywords
 
 function _catId(cat) { return 'cat_' + cat.replace(/\W+/g, '_'); }
 
@@ -857,7 +915,18 @@ async function loadFilters() {
   filtersView.innerHTML = '<div class="state"><div class="state-emoji">⏳</div><h2>Loading…</h2></div>';
   try {
     _filtersData = await apiFetch('/api/filters');
-    _selectedSpecs = new Set(_filtersData.skills);
+    // Split saved skills: known specs/categories → _selectedSpecs, rest → _customKeywords
+    const _allKnown = new Set();
+    Object.entries(_filtersData.specialties).forEach(([cat, items]) => {
+      _allKnown.add(cat);
+      items.forEach(i => _allKnown.add(i));
+    });
+    _selectedSpecs.clear();
+    _customKeywords.clear();
+    (_filtersData.skills || []).forEach(s => {
+      if (_allKnown.has(s)) _selectedSpecs.add(s);
+      else _customKeywords.add(s);
+    });
     _expandedCats.clear();
     renderFilters(_filtersData);
   } catch (e) {
@@ -911,8 +980,19 @@ function renderFilters(d) {
       <p class="filter-hint">Tap a category to select it as a whole, or expand ▸ to pick specific specialties.</p>
       ${categories}
     </div>
+    <div class="profile-card">
+      <div class="profile-card-title">Custom keywords</div>
+      <p class="filter-hint">Add any keywords to include in job search (e.g. "Remote", "B2B", "Senior").</p>
+      <div class="custom-kw-input-row">
+        <input id="custom-kw-input" class="custom-kw-input" type="text"
+               placeholder="Type a keyword…" maxlength="60"
+               onkeydown="if(event.key==='Enter'){addCustomKeyword();event.preventDefault();}">
+        <button class="custom-kw-add-btn" onclick="addCustomKeyword()">Add</button>
+      </div>
+      <div id="custom-kw-chips" class="custom-kw-chips">${_renderCustomChipsHtml()}</div>
+    </div>
     <button class="filter-save-btn" id="filter-save-btn" onclick="saveFilters()">Save filters</button>
-    ${_selectedSpecs.size > 0 ? '<button class="filter-clear-btn" onclick="clearFilters()">Clear all</button>' : ''}
+    ${(_selectedSpecs.size + _customKeywords.size) > 0 ? '<button class="filter-clear-btn" onclick="clearFilters()">Clear all</button>' : ''}
   `;
 }
 
@@ -953,12 +1033,35 @@ function toggleSpec(btn) {
   if (countEl) { countEl.textContent = count; countEl.style.display = count > 0 ? '' : 'none'; }
 }
 
+function _renderCustomChipsHtml() {
+  return Array.from(_customKeywords).map(kw =>
+    `<span class="custom-kw-chip">${esc(kw)}<button class="custom-kw-remove" data-kw="${esc(kw)}" onclick="removeCustomKeyword(this.dataset.kw)">✕</button></span>`
+  ).join('');
+}
+
+function addCustomKeyword() {
+  const input = document.getElementById('custom-kw-input');
+  if (!input) return;
+  const kw = input.value.trim();
+  if (!kw || _customKeywords.has(kw)) { input.value = ''; return; }
+  _customKeywords.add(kw);
+  input.value = '';
+  const el = document.getElementById('custom-kw-chips');
+  if (el) el.innerHTML = _renderCustomChipsHtml();
+}
+
+function removeCustomKeyword(kw) {
+  _customKeywords.delete(kw);
+  const el = document.getElementById('custom-kw-chips');
+  if (el) el.innerHTML = _renderCustomChipsHtml();
+}
+
 async function saveFilters() {
   const btn = document.getElementById('filter-save-btn');
   btn.disabled = true;
   btn.textContent = 'Saving…';
   try {
-    const skills = Array.from(_selectedSpecs);
+    const skills = [...Array.from(_selectedSpecs), ...Array.from(_customKeywords)];
     await apiFetch('/api/filters', 'POST', { city: _filtersData.city, skills });
     _filtersData.skills = skills;
     btn.textContent = 'Saved ✓';
@@ -971,6 +1074,7 @@ async function saveFilters() {
 
 async function clearFilters() {
   _selectedSpecs.clear();
+  _customKeywords.clear();
   await saveFilters();
   renderFilters(_filtersData);
 }
