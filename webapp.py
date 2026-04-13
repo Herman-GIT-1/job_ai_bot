@@ -22,10 +22,12 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 
 from config import DEFAULT_MIN_SCORE
+from config import CITIES
 from database import (
     get_jobs_to_apply, get_interested_jobs, mark_applied, mark_interested,
     get_jobs_by_status, move_to_status, get_cover_letter,
     get_stats, get_resume, get_user_lang, get_resume_file,
+    get_user_city, set_user_city, get_user_skills, set_user_skills,
 )
 
 logger = logging.getLogger(__name__)
@@ -233,6 +235,30 @@ async def api_resume_file(chat_id: int = Depends(_auth)):
         media_type=content_type,
         headers={"Content-Disposition": f'inline; filename="{file_name}"'},
     )
+
+
+@app.get("/api/filters")
+async def api_filters_get(chat_id: int = Depends(_auth)):
+    return {
+        "city": get_user_city(chat_id),
+        "skills": get_user_skills(chat_id),
+        "cities": CITIES,
+    }
+
+
+@app.post("/api/filters")
+async def api_filters_set(request: Request, chat_id: int = Depends(_auth)):
+    body = await request.json()
+    if "city" in body:
+        set_user_city(chat_id, str(body["city"]))
+    if "skills" in body:
+        raw = body["skills"]
+        if isinstance(raw, list):
+            skills = [s.strip() for s in raw if str(s).strip()]
+        else:
+            skills = [s.strip() for s in str(raw).split(",") if s.strip()]
+        set_user_skills(chat_id, skills)
+    return {"ok": True}
 
 
 @app.post("/api/status")

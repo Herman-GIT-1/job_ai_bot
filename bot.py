@@ -37,10 +37,7 @@ logger = logging.getLogger(__name__)
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 ADMIN_CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
 
-ASK_CITY = 0         # scrape_conv: waiting for city pick/type
-ASK_FILTER_ACTION = 1  # filters_conv: waiting for Set/Clear/City button
-ASK_SKILLS = 2         # filters_conv: waiting for skills text
-ASK_CITY_FILTER = 3    # filters_conv: waiting for city button
+ASK_CITY = 0   # scrape_conv: waiting for city pick/type
 
 
 # ---------------------------------------------------------------------------
@@ -466,76 +463,6 @@ async def cmd_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await msg.edit_text(t(lang_code, "backup_done"))
 
 
-@admin_only
-async def cmd_filters(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Show current city + skills filter and offer to change."""
-    chat_id = update.effective_chat.id
-    lang_code = _lang(update)
-    city = get_user_city(chat_id)
-    skills = get_user_skills(chat_id)
-    if skills:
-        text = t(lang_code, "filters_current", city=city, skills=", ".join(skills))
-    else:
-        text = t(lang_code, "filters_current_none", city=city)
-    keyboard = InlineKeyboardMarkup([[
-        InlineKeyboardButton(t(lang_code, "btn_change_city"),  callback_data="filters:city"),
-        InlineKeyboardButton(t(lang_code, "btn_set_skills"),   callback_data="filters:set"),
-        InlineKeyboardButton(t(lang_code, "btn_clear_filters"), callback_data="filters:clear"),
-    ]])
-    await update.message.reply_text(text, reply_markup=keyboard)
-    return ASK_FILTER_ACTION
-
-
-async def on_filters_action(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Handle Change city / Set skills / Clear button from /filters."""
-    query = update.callback_query
-    await query.answer()
-    chat_id = query.message.chat.id
-    lang_code = get_user_lang(chat_id)
-    action = query.data.split(":")[1]
-    if action == "clear":
-        set_user_skills(chat_id, [])
-        await query.message.reply_text(t(lang_code, "filters_cleared"))
-        return ConversationHandler.END
-    if action == "city":
-        # Show city buttons with filtercity: prefix so they don't trigger a scrape
-        buttons = [InlineKeyboardButton(c, callback_data=f"filtercity:{c}") for c in CITIES]
-        rows = [buttons[i:i + 3] for i in range(0, len(buttons), 3)]
-        await query.message.reply_text(
-            t(lang_code, "scrape_ask_city"),
-            reply_markup=InlineKeyboardMarkup(rows),
-        )
-        return ASK_CITY_FILTER
-    # action == "set" — ask user to type skills
-    await query.message.reply_text(t(lang_code, "filters_ask_skills"))
-    return ASK_SKILLS
-
-
-async def filters_receive_skills(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Save skills typed by user."""
-    chat_id = update.effective_chat.id
-    lang_code = _lang(update)
-    raw = update.message.text.strip()
-    skills = [s.strip() for s in raw.split(",") if s.strip()]
-    if not skills:
-        await update.message.reply_text(t(lang_code, "filters_invalid"))
-        return ASK_SKILLS
-    set_user_skills(chat_id, skills)
-    await update.message.reply_text(t(lang_code, "filters_saved", skills=", ".join(skills)))
-    return ConversationHandler.END
-
-
-async def filters_receive_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Save city picked from the city keyboard inside /filters."""
-    query = update.callback_query
-    await query.answer()
-    chat_id = query.message.chat.id
-    lang_code = get_user_lang(chat_id)
-    city = query.data.split(":", 1)[1]
-    set_user_city(chat_id, city)
-    await query.edit_message_reply_markup(reply_markup=None)
-    await query.message.reply_text(t(lang_code, "filters_city_set", city=city))
-    return ConversationHandler.END
 
 
 @admin_only
@@ -725,7 +652,6 @@ async def _set_commands(app: Application) -> None:
         ("resume",   "View current resume"),
         ("stats",    "Statistics"),
         ("help",     "Command reference"),
-        ("filters", "Set skills filter for job search"),
         ("language", "Change language"),
     ])
     if WEBAPP_URL:
@@ -789,23 +715,6 @@ def main():
     app.add_handler(CommandHandler("stop",     cmd_stop))
     app.add_handler(scrape_conv)
 
-    filters_conv = ConversationHandler(
-        entry_points=[CommandHandler("filters", cmd_filters)],
-        states={
-            ASK_FILTER_ACTION: [
-                CallbackQueryHandler(on_filters_action, pattern=r"^filters:"),
-            ],
-            ASK_SKILLS: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, filters_receive_skills),
-                CommandHandler("cancel", lambda u, c: ConversationHandler.END),
-            ],
-            ASK_CITY_FILTER: [
-                CallbackQueryHandler(filters_receive_city, pattern=r"^filtercity:"),
-            ],
-        },
-        fallbacks=[CommandHandler("cancel", lambda u, c: ConversationHandler.END)],
-    )
-    app.add_handler(filters_conv)
     app.add_handler(MessageHandler(filters.Document.ALL, cmd_resume_upload))
 
     # Inline button handlers — one per callback type for clarity

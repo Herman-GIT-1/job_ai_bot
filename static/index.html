@@ -306,6 +306,75 @@ body {
 }
 .resume-replace-btn:active { opacity: 0.65; }
 
+/* ── Filters ── */
+.city-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.city-btn {
+  padding: 8px 14px;
+  border: 1.5px solid rgba(142,142,147,0.3);
+  border-radius: 20px;
+  background: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tg-theme-text-color, #1c1c1e);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.city-btn.active {
+  background: var(--tg-theme-button-color, #007aff);
+  border-color: var(--tg-theme-button-color, #007aff);
+  color: var(--tg-theme-button-text-color, #fff);
+  font-weight: 600;
+}
+.filter-hint {
+  font-size: 13px;
+  color: var(--tg-theme-hint-color, #8e8e93);
+  margin-bottom: 10px;
+  line-height: 1.45;
+}
+.skills-input {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1.5px solid rgba(142,142,147,0.25);
+  border-radius: 12px;
+  background: var(--tg-theme-bg-color, #f2f2f7);
+  color: var(--tg-theme-text-color, #1c1c1e);
+  font-size: 15px;
+  outline: none;
+}
+.skills-input:focus { border-color: var(--tg-theme-button-color, #007aff); }
+.filter-save-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 14px;
+  background: var(--tg-theme-button-color, #007aff);
+  color: var(--tg-theme-button-text-color, #fff);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.filter-save-btn:active { opacity: 0.75; }
+.filter-save-btn:disabled { opacity: 0.5; cursor: default; }
+.filter-clear-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 14px;
+  background: rgba(142,142,147,0.15);
+  color: var(--tg-theme-hint-color, #8e8e93);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: -6px;
+}
+.filter-clear-btn:active { opacity: 0.65; }
+
 /* Settings rows */
 .setting-row {
   display: flex;
@@ -389,6 +458,12 @@ body {
   <span style="width:48px"></span>
 </div>
 
+<!-- Filters view header -->
+<div class="header" id="header-filters" style="display:none">
+  <span class="header-title">Filters</span>
+  <span style="width:48px"></span>
+</div>
+
 <!-- Tab bar (shown only in My List view) -->
 <div class="tabs" id="tab-bar" style="display:none">
   <button class="tab active" data-tab="saved"        onclick="switchTab('saved')">💾<br>Saved</button>
@@ -409,6 +484,9 @@ body {
 <!-- Profile view -->
 <div class="profile-view" id="profile-view"></div>
 
+<!-- Filters view -->
+<div class="profile-view" id="filters-view"></div>
+
 <!-- Action buttons (cards view only) -->
 <div class="actions" id="actions" style="display:none">
   <button class="btn btn-skip" onclick="doAction('skip')">❌<br>Skip</button>
@@ -420,6 +498,9 @@ body {
 <div class="bottom-nav" id="bottom-nav">
   <button class="nav-btn active" id="nav-cards" onclick="showView('cards')">
     <span class="nav-icon">🃏</span>Cards
+  </button>
+  <button class="nav-btn" id="nav-filters" onclick="showView('filters')">
+    <span class="nav-icon">🔍</span>Filters
   </button>
   <button class="nav-btn" id="nav-profile" onclick="showView('profile')">
     <span class="nav-icon">👤</span>Profile
@@ -455,19 +536,21 @@ let frontCard = null;
 let dragStartX = 0, dragDeltaX = 0;
 let isDragging = false;
 let inListView = false;
-let currentView = 'cards';  // 'cards' | 'profile'
+let currentView = 'cards';  // 'cards' | 'filters' | 'profile'
 let currentTab = 'saved';
 
-const deck          = document.getElementById('deck');
-const listView      = document.getElementById('list-view');
-const profileView   = document.getElementById('profile-view');
-const actions       = document.getElementById('actions');
-const counter       = document.getElementById('counter');
-const headerCards   = document.getElementById('header-cards');
-const headerList    = document.getElementById('header-list');
-const headerProfile = document.getElementById('header-profile');
-const tabBar        = document.getElementById('tab-bar');
-const bottomNav     = document.getElementById('bottom-nav');
+const deck           = document.getElementById('deck');
+const listView       = document.getElementById('list-view');
+const profileView    = document.getElementById('profile-view');
+const filtersView    = document.getElementById('filters-view');
+const actions        = document.getElementById('actions');
+const counter        = document.getElementById('counter');
+const headerCards    = document.getElementById('header-cards');
+const headerList     = document.getElementById('header-list');
+const headerProfile  = document.getElementById('header-profile');
+const headerFilters  = document.getElementById('header-filters');
+const tabBar         = document.getElementById('tab-bar');
+const bottomNav      = document.getElementById('bottom-nav');
 
 // ── API ────────────────────────────────────────────────────────────────────
 async function apiFetch(path, method = 'GET', body = null) {
@@ -498,18 +581,23 @@ function showView(view) {
 
   const isCards   = view === 'cards';
   const isProfile = view === 'profile';
+  const isFilters = view === 'filters';
 
   headerCards.style.display   = isCards   ? 'flex' : 'none';
   headerProfile.style.display = isProfile ? 'flex' : 'none';
+  headerFilters.style.display = isFilters ? 'flex' : 'none';
   deck.style.display          = isCards   ? ''     : 'none';
   actions.style.display       = isCards   ? 'flex' : 'none';
   profileView.classList.toggle('active', isProfile);
+  filtersView.classList.toggle('active', isFilters);
   bottomNav.style.display     = 'flex';
 
   document.getElementById('nav-cards').classList.toggle('active', isCards);
+  document.getElementById('nav-filters').classList.toggle('active', isFilters);
   document.getElementById('nav-profile').classList.toggle('active', isProfile);
 
   if (isProfile) loadProfile();
+  if (isFilters) loadFilters();
 }
 
 // ── Bootstrap ──────────────────────────────────────────────────────────────
@@ -658,6 +746,77 @@ function renderProfile(d) {
 
 function replaceResume() {
   tg.showAlert('To replace your resume — send a new .txt, .pdf or .docx file directly in the bot chat.');
+}
+
+// ── Filters view ───────────────────────────────────────────────────────────
+let _filtersData = null;
+
+async function loadFilters() {
+  filtersView.innerHTML = '<div class="state"><div class="state-emoji">⏳</div><h2>Loading…</h2></div>';
+  try {
+    _filtersData = await apiFetch('/api/filters');
+    renderFilters(_filtersData);
+  } catch (e) {
+    filtersView.innerHTML = `<div class="state"><div class="state-emoji">❌</div><h2>Error</h2><p>${esc(e.message)}</p></div>`;
+  }
+}
+
+function renderFilters(d) {
+  const cityBtns = d.cities.map(c =>
+    `<button class="city-btn${c === d.city ? ' active' : ''}" onclick="selectCity('${esc(c)}')">${esc(c)}</button>`
+  ).join('');
+
+  filtersView.innerHTML = `
+    <!-- City -->
+    <div class="profile-card">
+      <div class="profile-card-title">City</div>
+      <div class="city-grid" id="city-grid">${cityBtns}</div>
+    </div>
+
+    <!-- Skills -->
+    <div class="profile-card">
+      <div class="profile-card-title">Skills filter</div>
+      <p class="filter-hint">Show only jobs that mention these skills. Leave empty to show all jobs.</p>
+      <input id="skills-input" class="skills-input" type="text"
+             placeholder="e.g. Python, SQL, React"
+             value="${esc(d.skills.join(', '))}">
+    </div>
+
+    <!-- Save button -->
+    <button class="filter-save-btn" id="filter-save-btn" onclick="saveFilters()">Save filters</button>
+    ${d.skills.length ? '<button class="filter-clear-btn" onclick="clearSkills()">Clear skills filter</button>' : ''}
+  `;
+}
+
+function selectCity(city) {
+  _filtersData.city = city;
+  document.querySelectorAll('.city-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent === city);
+  });
+}
+
+async function saveFilters() {
+  const btn = document.getElementById('filter-save-btn');
+  const skillsRaw = (document.getElementById('skills-input')?.value || '').trim();
+  const skills = skillsRaw ? skillsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    await apiFetch('/api/filters', 'POST', { city: _filtersData.city, skills });
+    btn.textContent = 'Saved ✓';
+    _filtersData.skills = skills;
+    setTimeout(() => { btn.disabled = false; btn.textContent = 'Save filters'; }, 1500);
+  } catch (e) {
+    btn.textContent = 'Error — retry';
+    btn.disabled = false;
+  }
+}
+
+async function clearSkills() {
+  document.getElementById('skills-input').value = '';
+  _filtersData.skills = [];
+  await saveFilters();
+  renderFilters(_filtersData);
 }
 
 // ── Tab renderers ──────────────────────────────────────────────────────────
