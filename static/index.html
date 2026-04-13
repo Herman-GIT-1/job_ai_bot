@@ -331,18 +331,76 @@ body {
   font-weight: 600;
 }
 /* Specialty categories */
-.spec-category { margin-bottom: 18px; }
+.spec-category { margin-bottom: 10px; }
 .spec-category:last-child { margin-bottom: 0; }
-.spec-cat-title {
+/* Category header row: [label chip] [expand arrow] */
+.spec-cat-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.spec-cat-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1.5px solid rgba(142,142,147,0.3);
+  border-radius: 12px;
+  background: var(--tg-theme-secondary-bg-color, #fff);
   font-size: 15px;
   font-weight: 700;
-  margin-bottom: 8px;
   color: var(--tg-theme-text-color, #1c1c1e);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s;
+  -webkit-tap-highlight-color: transparent;
 }
+.spec-cat-label.active {
+  background: var(--tg-theme-button-color, #007aff);
+  border-color: var(--tg-theme-button-color, #007aff);
+  color: var(--tg-theme-button-text-color, #fff);
+}
+.spec-cat-label.active .chip-box {
+  border-color: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+.cat-name { flex: 1; }
+.cat-count {
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(0,122,255,0.12);
+  color: var(--tg-theme-button-color, #007aff);
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+.spec-cat-label.active .cat-count {
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+}
+.spec-cat-arrow {
+  width: 44px; height: 44px;
+  border: 1.5px solid rgba(142,142,147,0.3);
+  border-radius: 12px;
+  background: var(--tg-theme-secondary-bg-color, #fff);
+  color: var(--tg-theme-hint-color, #8e8e93);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.spec-cat-arrow:active { opacity: 0.65; }
+/* Individual specialty chips (inside expanded category) */
 .spec-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0,0,0,0.06);
 }
 .spec-chip {
   display: flex;
@@ -365,6 +423,11 @@ body {
   color: var(--tg-theme-button-text-color, #fff);
   font-weight: 600;
 }
+.spec-chip.active .chip-box {
+  border-color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+}
 .chip-box {
   width: 16px; height: 16px;
   border: 1.5px solid rgba(142,142,147,0.5);
@@ -374,11 +437,6 @@ body {
   font-size: 11px; font-weight: 700;
   background: var(--tg-theme-bg-color, #f2f2f7);
   color: transparent;
-}
-.spec-chip.active .chip-box {
-  border-color: rgba(255,255,255,0.7);
-  background: rgba(255,255,255,0.25);
-  color: #fff;
 }
 /* Save / Clear */
 .filter-save-btn {
@@ -789,14 +847,18 @@ function replaceResume() {
 }
 
 // ── Filters view ───────────────────────────────────────────────────────────
-let _filtersData = null;
-let _selectedSpecs = new Set();
+let _filtersData   = null;
+let _selectedSpecs = new Set();  // category names + individual spec names
+let _expandedCats  = new Set();  // currently expanded categories
+
+function _catId(cat) { return 'cat_' + cat.replace(/\W+/g, '_'); }
 
 async function loadFilters() {
   filtersView.innerHTML = '<div class="state"><div class="state-emoji">⏳</div><h2>Loading…</h2></div>';
   try {
     _filtersData = await apiFetch('/api/filters');
     _selectedSpecs = new Set(_filtersData.skills);
+    _expandedCats.clear();
     renderFilters(_filtersData);
   } catch (e) {
     filtersView.innerHTML = `<div class="state"><div class="state-emoji">❌</div><h2>Error</h2><p>${esc(e.message)}</p></div>`;
@@ -805,66 +867,90 @@ async function loadFilters() {
 
 function renderFilters(d) {
   const cityBtns = d.cities.map(c =>
-    `<button class="city-btn${c === d.city ? ' active' : ''}" onclick="selectCity('${esc(c)}')">${esc(c)}</button>`
+    `<button class="city-btn${c === d.city ? ' active' : ''}" data-city="${esc(c)}"
+             onclick="selectCity(this.dataset.city)">${esc(c)}</button>`
   ).join('');
 
   const categories = Object.entries(d.specialties).map(([cat, items]) => {
+    const id       = _catId(cat);
+    const catSel   = _selectedSpecs.has(cat);
+    const catExp   = _expandedCats.has(cat);
+    const selCount = items.filter(i => _selectedSpecs.has(i)).length;
+    const countHtml = `<span class="cat-count" id="${id}_count" ${selCount ? '' : 'style="display:none"'}>${selCount}</span>`;
+
     const chips = items.map(item => {
-      const active = _selectedSpecs.has(item);
-      const safeItem = esc(item);
-      return `<button class="spec-chip${active ? ' active' : ''}"
-                       onclick="toggleSpec('${safeItem}')"
-                       data-spec="${safeItem}">
-                <span class="chip-box">${active ? '✓' : ''}</span>${safeItem}
+      const on = _selectedSpecs.has(item);
+      return `<button class="spec-chip${on ? ' active' : ''}" data-spec="${esc(item)}" data-cat="${esc(cat)}"
+                       onclick="toggleSpec(this)">
+                <span class="chip-box">${on ? '✓' : ''}</span>${esc(item)}
               </button>`;
     }).join('');
+
     return `<div class="spec-category">
-      <div class="spec-cat-title">${esc(cat)}</div>
-      <div class="spec-chips">${chips}</div>
+      <div class="spec-cat-header">
+        <button class="spec-cat-label${catSel ? ' active' : ''}" data-cat="${esc(cat)}" onclick="toggleCat(this)">
+          <span class="chip-box">${catSel ? '✓' : ''}</span>
+          <span class="cat-name">${esc(cat)}</span>
+          ${countHtml}
+        </button>
+        <button class="spec-cat-arrow" data-cat="${esc(cat)}" onclick="toggleCatExpand(this)">
+          <span id="${id}_chevron">${catExp ? '▾' : '▸'}</span>
+        </button>
+      </div>
+      <div class="spec-chips" id="${id}_items" ${catExp ? '' : 'style="display:none"'}>${chips}</div>
     </div>`;
   }).join('');
 
-  const hasSelection = _selectedSpecs.size > 0;
-
   filtersView.innerHTML = `
-    <!-- City -->
     <div class="profile-card">
       <div class="profile-card-title">City</div>
       <div class="city-grid">${cityBtns}</div>
     </div>
-
-    <!-- Specialties -->
     <div class="profile-card">
       <div class="profile-card-title">Specialties</div>
-      <p class="filter-hint">Select what you're looking for. Only jobs matching selected specialties will be shown.</p>
+      <p class="filter-hint">Tap a category to select it as a whole, or expand ▸ to pick specific specialties.</p>
       ${categories}
     </div>
-
-    <!-- Actions -->
     <button class="filter-save-btn" id="filter-save-btn" onclick="saveFilters()">Save filters</button>
-    ${hasSelection ? '<button class="filter-clear-btn" onclick="clearFilters()">Clear all specialties</button>' : ''}
+    ${_selectedSpecs.size > 0 ? '<button class="filter-clear-btn" onclick="clearFilters()">Clear all</button>' : ''}
   `;
 }
 
 function selectCity(city) {
   _filtersData.city = city;
-  document.querySelectorAll('.city-btn').forEach(b => {
-    b.classList.toggle('active', b.textContent === city);
-  });
+  document.querySelectorAll('.city-btn').forEach(b => b.classList.toggle('active', b.dataset.city === city));
 }
 
-function toggleSpec(name) {
-  const btn = document.querySelector(`[data-spec="${name}"]`);
-  if (!btn) return;
-  if (_selectedSpecs.has(name)) {
-    _selectedSpecs.delete(name);
-    btn.classList.remove('active');
-    btn.querySelector('.chip-box').textContent = '';
-  } else {
-    _selectedSpecs.add(name);
-    btn.classList.add('active');
-    btn.querySelector('.chip-box').textContent = '✓';
-  }
+function toggleCat(btn) {
+  const cat = btn.dataset.cat;
+  const on  = _selectedSpecs.has(cat);
+  if (on) { _selectedSpecs.delete(cat); } else { _selectedSpecs.add(cat); }
+  btn.classList.toggle('active', !on);
+  btn.querySelector('.chip-box').textContent = on ? '' : '✓';
+}
+
+function toggleCatExpand(arrowBtn) {
+  const cat = arrowBtn.dataset.cat;
+  const id  = _catId(cat);
+  const exp = _expandedCats.has(cat);
+  if (exp) { _expandedCats.delete(cat); } else { _expandedCats.add(cat); }
+  document.getElementById(id + '_items').style.display    = exp ? 'none' : '';
+  document.getElementById(id + '_chevron').textContent    = exp ? '▸' : '▾';
+}
+
+function toggleSpec(btn) {
+  const spec = btn.dataset.spec;
+  const cat  = btn.dataset.cat;
+  const id   = _catId(cat);
+  const on   = _selectedSpecs.has(spec);
+  if (on) { _selectedSpecs.delete(spec); } else { _selectedSpecs.add(spec); }
+  btn.classList.toggle('active', !on);
+  btn.querySelector('.chip-box').textContent = on ? '' : '✓';
+  // Update count badge on the parent category header
+  const catItems = (_filtersData.specialties || {})[cat] || [];
+  const count    = catItems.filter(i => _selectedSpecs.has(i)).length;
+  const countEl  = document.getElementById(id + '_count');
+  if (countEl) { countEl.textContent = count; countEl.style.display = count > 0 ? '' : 'none'; }
 }
 
 async function saveFilters() {
