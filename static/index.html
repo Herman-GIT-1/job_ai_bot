@@ -330,23 +330,57 @@ body {
   color: var(--tg-theme-button-text-color, #fff);
   font-weight: 600;
 }
-.filter-hint {
-  font-size: 13px;
-  color: var(--tg-theme-hint-color, #8e8e93);
-  margin-bottom: 10px;
-  line-height: 1.45;
-}
-.skills-input {
-  width: 100%;
-  padding: 11px 13px;
-  border: 1.5px solid rgba(142,142,147,0.25);
-  border-radius: 12px;
-  background: var(--tg-theme-bg-color, #f2f2f7);
-  color: var(--tg-theme-text-color, #1c1c1e);
+/* Specialty categories */
+.spec-category { margin-bottom: 18px; }
+.spec-category:last-child { margin-bottom: 0; }
+.spec-cat-title {
   font-size: 15px;
-  outline: none;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--tg-theme-text-color, #1c1c1e);
 }
-.skills-input:focus { border-color: var(--tg-theme-button-color, #007aff); }
+.spec-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.spec-chip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 12px;
+  border: 1.5px solid rgba(142,142,147,0.3);
+  border-radius: 8px;
+  background: var(--tg-theme-secondary-bg-color, #fff);
+  font-size: 14px;
+  color: var(--tg-theme-text-color, #1c1c1e);
+  cursor: pointer;
+  transition: all 0.12s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.spec-chip.active {
+  background: var(--tg-theme-button-color, #007aff);
+  border-color: var(--tg-theme-button-color, #007aff);
+  color: var(--tg-theme-button-text-color, #fff);
+  font-weight: 600;
+}
+.chip-box {
+  width: 16px; height: 16px;
+  border: 1.5px solid rgba(142,142,147,0.5);
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700;
+  background: var(--tg-theme-bg-color, #f2f2f7);
+  color: transparent;
+}
+.spec-chip.active .chip-box {
+  border-color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.25);
+  color: #fff;
+}
+/* Save / Clear */
 .filter-save-btn {
   width: 100%;
   padding: 14px;
@@ -374,6 +408,12 @@ body {
   margin-top: -6px;
 }
 .filter-clear-btn:active { opacity: 0.65; }
+.filter-hint {
+  font-size: 13px;
+  color: var(--tg-theme-hint-color, #8e8e93);
+  margin-bottom: 12px;
+  line-height: 1.45;
+}
 
 /* Settings rows */
 .setting-row {
@@ -750,11 +790,13 @@ function replaceResume() {
 
 // ── Filters view ───────────────────────────────────────────────────────────
 let _filtersData = null;
+let _selectedSpecs = new Set();
 
 async function loadFilters() {
   filtersView.innerHTML = '<div class="state"><div class="state-emoji">⏳</div><h2>Loading…</h2></div>';
   try {
     _filtersData = await apiFetch('/api/filters');
+    _selectedSpecs = new Set(_filtersData.skills);
     renderFilters(_filtersData);
   } catch (e) {
     filtersView.innerHTML = `<div class="state"><div class="state-emoji">❌</div><h2>Error</h2><p>${esc(e.message)}</p></div>`;
@@ -766,25 +808,41 @@ function renderFilters(d) {
     `<button class="city-btn${c === d.city ? ' active' : ''}" onclick="selectCity('${esc(c)}')">${esc(c)}</button>`
   ).join('');
 
+  const categories = Object.entries(d.specialties).map(([cat, items]) => {
+    const chips = items.map(item => {
+      const active = _selectedSpecs.has(item);
+      const safeItem = esc(item);
+      return `<button class="spec-chip${active ? ' active' : ''}"
+                       onclick="toggleSpec('${safeItem}')"
+                       data-spec="${safeItem}">
+                <span class="chip-box">${active ? '✓' : ''}</span>${safeItem}
+              </button>`;
+    }).join('');
+    return `<div class="spec-category">
+      <div class="spec-cat-title">${esc(cat)}</div>
+      <div class="spec-chips">${chips}</div>
+    </div>`;
+  }).join('');
+
+  const hasSelection = _selectedSpecs.size > 0;
+
   filtersView.innerHTML = `
     <!-- City -->
     <div class="profile-card">
       <div class="profile-card-title">City</div>
-      <div class="city-grid" id="city-grid">${cityBtns}</div>
+      <div class="city-grid">${cityBtns}</div>
     </div>
 
-    <!-- Skills -->
+    <!-- Specialties -->
     <div class="profile-card">
-      <div class="profile-card-title">Skills filter</div>
-      <p class="filter-hint">Show only jobs that mention these skills. Leave empty to show all jobs.</p>
-      <input id="skills-input" class="skills-input" type="text"
-             placeholder="e.g. Python, SQL, React"
-             value="${esc(d.skills.join(', '))}">
+      <div class="profile-card-title">Specialties</div>
+      <p class="filter-hint">Select what you're looking for. Only jobs matching selected specialties will be shown.</p>
+      ${categories}
     </div>
 
-    <!-- Save button -->
+    <!-- Actions -->
     <button class="filter-save-btn" id="filter-save-btn" onclick="saveFilters()">Save filters</button>
-    ${d.skills.length ? '<button class="filter-clear-btn" onclick="clearSkills()">Clear skills filter</button>' : ''}
+    ${hasSelection ? '<button class="filter-clear-btn" onclick="clearFilters()">Clear all specialties</button>' : ''}
   `;
 }
 
@@ -795,16 +853,29 @@ function selectCity(city) {
   });
 }
 
+function toggleSpec(name) {
+  const btn = document.querySelector(`[data-spec="${name}"]`);
+  if (!btn) return;
+  if (_selectedSpecs.has(name)) {
+    _selectedSpecs.delete(name);
+    btn.classList.remove('active');
+    btn.querySelector('.chip-box').textContent = '';
+  } else {
+    _selectedSpecs.add(name);
+    btn.classList.add('active');
+    btn.querySelector('.chip-box').textContent = '✓';
+  }
+}
+
 async function saveFilters() {
   const btn = document.getElementById('filter-save-btn');
-  const skillsRaw = (document.getElementById('skills-input')?.value || '').trim();
-  const skills = skillsRaw ? skillsRaw.split(',').map(s => s.trim()).filter(Boolean) : [];
   btn.disabled = true;
   btn.textContent = 'Saving…';
   try {
+    const skills = Array.from(_selectedSpecs);
     await apiFetch('/api/filters', 'POST', { city: _filtersData.city, skills });
-    btn.textContent = 'Saved ✓';
     _filtersData.skills = skills;
+    btn.textContent = 'Saved ✓';
     setTimeout(() => { btn.disabled = false; btn.textContent = 'Save filters'; }, 1500);
   } catch (e) {
     btn.textContent = 'Error — retry';
@@ -812,9 +883,8 @@ async function saveFilters() {
   }
 }
 
-async function clearSkills() {
-  document.getElementById('skills-input').value = '';
-  _filtersData.skills = [];
+async function clearFilters() {
+  _selectedSpecs.clear();
   await saveFilters();
   renderFilters(_filtersData);
 }

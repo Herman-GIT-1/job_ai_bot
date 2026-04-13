@@ -8,6 +8,52 @@ Import with:  from config import CITIES, JOBS_PAGE_SIZE, ...
 
 CITIES = ["Warszawa", "Kraków", "Wrocław", "Gdańsk", "Poznań", "Remote"]
 
+# Job specialty categories shown in Mini App Filters tab.
+# Values are matched against job title/description in the scraper.
+JOB_SPECIALTIES: dict[str, list[str]] = {
+    "IT": [
+        "Python", "JavaScript", "TypeScript", "Java", "PHP",
+        "Ruby", ".NET", "C++", "Go", "Rust",
+        "React", "Angular", "Vue", "Node.js",
+        "iOS", "Android", "Flutter",
+        "DevOps", "Cloud", "Data Science", "Machine Learning",
+        "QA", "Cybersecurity", "System Administration",
+    ],
+    "Marketing": [
+        "Digital Marketing", "SEO", "PPC", "Social Media",
+        "Content Marketing", "Email Marketing", "Brand Management",
+        "Analytics",
+    ],
+    "Finance": [
+        "Accounting", "Banking", "Investment", "Controlling",
+        "Risk Management", "Audit", "Tax", "Treasury",
+    ],
+    "HR": [
+        "Recruitment", "HR Generalist", "Training", "Payroll",
+        "Compensation",
+    ],
+    "Design": [
+        "UX/UI", "Graphic Design", "Product Design", "Motion Design",
+    ],
+    "Sales": [
+        "Sales", "Account Management", "Business Development",
+        "Key Account",
+    ],
+    "Management": [
+        "Project Management", "Product Management",
+        "Operations", "Scrum", "Agile",
+    ],
+    "Customer Service": [
+        "Customer Support", "Customer Success",
+    ],
+    "Legal": [
+        "Compliance", "Legal", "Contract Management",
+    ],
+    "Logistics": [
+        "Supply Chain", "Procurement", "Logistics", "Warehouse",
+    ],
+}
+
 SCRAPE_COOLDOWN_MINUTES = 60   # cooldown between /scrape calls per user
 JOBS_PAGE_SIZE = 5             # job cards sent per page in /jobs
 

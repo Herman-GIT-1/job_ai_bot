@@ -22,7 +22,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 
 from config import DEFAULT_MIN_SCORE
-from config import CITIES
+from config import CITIES, JOB_SPECIALTIES
 from database import (
     get_jobs_to_apply, get_interested_jobs, mark_applied, mark_interested,
     get_jobs_by_status, move_to_status, get_cover_letter,
@@ -243,6 +243,7 @@ async def api_filters_get(chat_id: int = Depends(_auth)):
         "city": get_user_city(chat_id),
         "skills": get_user_skills(chat_id),
         "cities": CITIES,
+        "specialties": JOB_SPECIALTIES,
     }
 
 
