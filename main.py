@@ -15,12 +15,13 @@ from database import save_job, get_jobs, update_job, count_jobs, CLI_CHAT_ID
 from ai_score import evaluate
 from cover_letter import generate_letter
 from resume_parser import load_resume
+from config import LETTER_MIN_SCORE
 
 
 def run_scrape(city: str = "Warsaw") -> None:
     print(f"=== Scraping jobs — {city} (Adzuna + NoFluffJobs + Remotive) ===")
     before = count_jobs(CLI_CHAT_ID)
-    jobs, used_fallback = search_jobs(city)
+    jobs, used_fallback = search_jobs(city, CLI_CHAT_ID)
     if used_fallback:
         print("[!] AI query builder failed — using generic fallback queries.")
     for job in jobs:
@@ -29,7 +30,7 @@ def run_scrape(city: str = "Warsaw") -> None:
     print(f"Done. Found: {len(jobs)}, new in DB: {saved}.")
 
 
-def run_score(min_letter_score: int = 7) -> None:
+def run_score(min_letter_score: int = LETTER_MIN_SCORE) -> None:
     print("=== AI scoring + cover letter generation ===")
     pending = get_jobs(CLI_CHAT_ID)
     if not pending:
