@@ -83,8 +83,14 @@ CREATE TABLE IF NOT EXISTS user_settings (
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS resume_file_id TEXT",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS resume_file_name TEXT",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS city TEXT DEFAULT 'Warsaw'",
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS content_hash TEXT",
             ]:
                 cur.execute(ddl)
+            cur.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_content_hash_user"
+                " ON jobs (content_hash, chat_id)"
+                " WHERE content_hash IS NOT NULL"
+            )
             # One-time cleanup: remove pending duplicate jobs with same (title, company, chat_id),
             # keeping only the highest-score row (or highest id if scores are equal).
             cur.execute("""
@@ -255,11 +261,19 @@ def save_job(job: dict, chat_id: int) -> bool:
     try:
         with _get_conn() as conn:
             with conn.cursor() as cur:
+                content_hash = job.get("content_hash")
+                if content_hash:
+                    cur.execute(
+                        "SELECT 1 FROM jobs WHERE content_hash = %s AND chat_id = %s",
+                        (content_hash, chat_id),
+                    )
+                    if cur.fetchone():
+                        return False
                 cur.execute(
                     "INSERT INTO jobs"
                     " (chat_id, title, company, link, tech_stack, remote, city, description,"
-                    "  source, salary_min, salary_max, salary_currency)"
-                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                    "  source, salary_min, salary_max, salary_currency, content_hash)"
+                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
                     " ON CONFLICT (link, chat_id) DO NOTHING",
                     (
                         chat_id,
@@ -274,6 +288,7 @@ def save_job(job: dict, chat_id: int) -> bool:
                         job.get("salary_min"),
                         job.get("salary_max"),
                         job.get("salary_currency"),
+                        content_hash,
                     ),
                 )
                 inserted = cur.rowcount > 0

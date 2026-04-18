@@ -1,3 +1,4 @@
+import hashlib
 import html
 import json
 import logging
@@ -41,6 +42,25 @@ def _strip_html(text: str, max_len: int = 1500) -> str:
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()[:max_len]
+
+
+def _normalize_title(title: str) -> str:
+    """Strip trailing location/remote annotations from job title for dedup."""
+    t = title.lower().strip()
+    t = re.sub(
+        r'\s*[-|(/]\s*'
+        r'(warsaw|warszawa|krak[oó]w|wroclaw|wrocław|gdańsk|gdansk'
+        r'|poznań|poznan|łódź|lodz|katowice|remote|zdalnie|hybrid).*$',
+        '', t, flags=re.IGNORECASE,
+    )
+    return re.sub(r'\s+', ' ', t).strip()
+
+
+def _dedup_hash(company: str, title: str, city: str) -> str:
+    """MD5 hash of normalized (company|title|city) for cross-source dedup."""
+    key = f"{company.lower().strip()}|{_normalize_title(title)}|{city.lower().strip()}"
+    return hashlib.md5(key.encode()).hexdigest()
+
 
 # TECH_KEYWORDS is imported from config.py — edit the domain registry there.
 
@@ -498,21 +518,27 @@ def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], boo
     # raw.extend(_fetch_rocketjobs(city, skills, seniority))
     raw.extend(_fetch_remotive(remotive_categories, seniority))
 
-    # Deduplicate by link first, then by (title, company) to catch
-    # same job appearing on JustJoin + RocketJobs (same backend, different domains)
-    # or Adzuna returning the same job across multiple queries with different redirect URLs.
+    # Deduplicate: 3 layers
+    # 1) link — exact URL match
+    # 2) (title, company) — same job from different aggregators with different URLs
+    # 3) content hash MD5(company|normalized_title|city) — catches cross-source
+    #    duplicates where title has minor differences (e.g. "- Warsaw" suffix)
     seen_links: set[str] = set()
     seen_pairs: set[tuple] = set()
+    seen_hashes: set[str] = set()
     jobs = []
     for job in raw:
         link = job["link"]
         pair = (job["title"].lower().strip(), job["company"].lower().strip())
+        h = _dedup_hash(job["company"], job["title"], job.get("city", ""))
         if not link:
             continue
-        if link in seen_links or pair in seen_pairs:
+        if link in seen_links or pair in seen_pairs or h in seen_hashes:
             continue
         seen_links.add(link)
         seen_pairs.add(pair)
+        seen_hashes.add(h)
+        job["content_hash"] = h
         jobs.append(job)
 
     # Post-filter by specialty keywords (catches Remotive and sources without native skill filter)
