@@ -31,7 +31,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "resume_upload_failed": "Could not process file: {error}",
         # --- scrape ---
         "scrape_ask_city": "Which city to search in?\nOr type a custom city name below.\n\n/cancel to abort.",
-        "scrape_searching": "Searching for jobs in {city}… ~30 seconds.",
+        "scrape_searching": "Searching for jobs in {city}… ~45 seconds.",
         "scrape_no_resume_hint": (
             "No resume uploaded yet — search will use generic queries.\n"
             "Send a .txt/.pdf/.docx file to get personalised results."
@@ -179,7 +179,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "resume_upload_failed": "Не удалось обработать файл: {error}",
         # --- scrape ---
         "scrape_ask_city": "В каком городе искать?\nИли введи название города вручную.\n\n/cancel — отменить.",
-        "scrape_searching": "Ищу вакансии в {city}… ~30 секунд.",
+        "scrape_searching": "Ищу вакансии в {city}… ~45 секунд.",
         "scrape_no_resume_hint": (
             "Резюме ещё не загружено — поиск будет выполнен по базовым запросам.\n"
             "Отправь файл .txt/.pdf/.docx чтобы получить персональные результаты."
@@ -327,7 +327,7 @@ TEXTS: dict[str, dict[str, str]] = {
         "resume_upload_failed": "Nie udało się przetworzyć pliku: {error}",
         # --- scrape ---
         "scrape_ask_city": "W jakim mieście szukać?\nMożesz też wpisać nazwę miasta ręcznie.\n\n/cancel — anuluj.",
-        "scrape_searching": "Szukam ofert w {city}… ~30 sekund.",
+        "scrape_searching": "Szukam ofert w {city}… ~45 sekund.",
         "scrape_no_resume_hint": (
             "Brak CV — wyszukiwanie z podstawowymi zapytaniami.\n"
             "Wyślij plik .txt/.pdf/.docx aby uzyskać spersonalizowane wyniki."

@@ -494,6 +494,148 @@ def _fetch_rocketjobs(city: str, skills: list[str] = None, seniority: str = "jun
                            "https://rocketjobs.pl/job-offer/", skills, seniority)
 
 
+# ── ATS platform fetchers ─────────────────────────────────────────────────────
+
+def _fetch_greenhouse(city: str, skills: list[str] = None, seniority: str = "junior") -> list[dict]:
+    """Greenhouse ATS — iterate over curated company boards."""
+    from ats_companies import GREENHOUSE_BOARDS
+    if not GREENHOUSE_BOARDS:
+        return []
+    logger.info("[Greenhouse] Searching %d boards (%s)...", len(GREENHOUSE_BOARDS), seniority)
+    jobs: list[dict] = []
+    city_lower = city.lower()
+    for board_id, company_name in GREENHOUSE_BOARDS.items():
+        try:
+            url = f"https://boards-api.greenhouse.io/v1/boards/{board_id}/jobs"
+            r = requests.get(url, params={"content": "true"}, timeout=15)
+            r.raise_for_status()
+            for posting in r.json().get("jobs", []):
+                title = posting.get("title", "")
+                if any(w in title.lower() for w in _EXCLUDED_TITLE_KEYWORDS):
+                    continue
+                if seniority == "junior" and not _is_junior(title, ""):
+                    continue
+                location = (posting.get("location") or {}).get("name", "")
+                loc_lower = location.lower()
+                if city_lower not in loc_lower and "remote" not in loc_lower:
+                    continue
+                description = _strip_html(posting.get("content", ""))
+                jobs.append({
+                    "title": title,
+                    "company": company_name,
+                    "link": posting.get("absolute_url", ""),
+                    "tech_stack": _extract_tech(description),
+                    "remote": "remote" in loc_lower,
+                    "city": location or city,
+                    "description": description,
+                    "source": "Greenhouse",
+                    "salary_min": None,
+                    "salary_max": None,
+                    "salary_currency": None,
+                })
+        except Exception as e:
+            logger.error("[Greenhouse] Error for board '%s': %s", board_id, e)
+        time.sleep(0.3)
+    logger.info("[Greenhouse] Found %d matching jobs.", len(jobs))
+    return jobs
+
+
+def _fetch_lever(city: str, skills: list[str] = None, seniority: str = "junior") -> list[dict]:
+    """Lever ATS — iterate over curated company boards."""
+    from ats_companies import LEVER_COMPANIES
+    if not LEVER_COMPANIES:
+        return []
+    logger.info("[Lever] Searching %d companies (%s)...", len(LEVER_COMPANIES), seniority)
+    jobs: list[dict] = []
+    city_lower = city.lower()
+    for company_slug, company_name in LEVER_COMPANIES.items():
+        try:
+            url = f"https://api.lever.co/v0/postings/{company_slug}"
+            r = requests.get(url, params={"mode": "json"}, timeout=15)
+            r.raise_for_status()
+            data = r.json()
+            if not isinstance(data, list):
+                continue
+            for posting in data:
+                title = posting.get("text", "")
+                if any(w in title.lower() for w in _EXCLUDED_TITLE_KEYWORDS):
+                    continue
+                if seniority == "junior" and not _is_junior(title, ""):
+                    continue
+                location = (posting.get("categories") or {}).get("location", "")
+                loc_lower = (location or "").lower()
+                if city_lower not in loc_lower and "remote" not in loc_lower:
+                    continue
+                description = _strip_html(posting.get("descriptionPlain", "") or "")
+                jobs.append({
+                    "title": title,
+                    "company": company_name,
+                    "link": posting.get("hostedUrl", ""),
+                    "tech_stack": _extract_tech(description),
+                    "remote": "remote" in loc_lower,
+                    "city": location or city,
+                    "description": description,
+                    "source": "Lever",
+                    "salary_min": None,
+                    "salary_max": None,
+                    "salary_currency": None,
+                })
+        except Exception as e:
+            logger.error("[Lever] Error for company '%s': %s", company_slug, e)
+        time.sleep(0.3)
+    logger.info("[Lever] Found %d matching jobs.", len(jobs))
+    return jobs
+
+
+def _fetch_workable(city: str, skills: list[str] = None, seniority: str = "junior") -> list[dict]:
+    """Workable ATS — iterate over curated company subdomains."""
+    from ats_companies import WORKABLE_COMPANIES
+    if not WORKABLE_COMPANIES:
+        return []
+    logger.info("[Workable] Searching %d companies (%s)...", len(WORKABLE_COMPANIES), seniority)
+    jobs: list[dict] = []
+    city_lower = city.lower()
+    for subdomain, company_name in WORKABLE_COMPANIES.items():
+        try:
+            url = f"https://apply.workable.com/api/v3/accounts/{subdomain}/jobs"
+            r = requests.post(url, json={
+                "query": "", "location": [], "department": [],
+                "worktype": [], "remote": [],
+            }, timeout=15)
+            r.raise_for_status()
+            for posting in r.json().get("results", []):
+                title = posting.get("title", "")
+                if any(w in title.lower() for w in _EXCLUDED_TITLE_KEYWORDS):
+                    continue
+                if seniority == "junior" and not _is_junior(title, ""):
+                    continue
+                location = posting.get("location", "")
+                loc_lower = (location or "").lower()
+                if city_lower not in loc_lower and "remote" not in loc_lower:
+                    continue
+                shortcode = posting.get("shortcode", "")
+                link = f"https://apply.workable.com/{subdomain}/j/{shortcode}/"
+                description = _strip_html(posting.get("description", "") or "")
+                jobs.append({
+                    "title": title,
+                    "company": company_name,
+                    "link": link,
+                    "tech_stack": _extract_tech(description),
+                    "remote": "remote" in loc_lower,
+                    "city": location or city,
+                    "description": description,
+                    "source": "Workable",
+                    "salary_min": None,
+                    "salary_max": None,
+                    "salary_currency": None,
+                })
+        except Exception as e:
+            logger.error("[Workable] Error for company '%s': %s", subdomain, e)
+        time.sleep(0.3)
+    logger.info("[Workable] Found %d matching jobs.", len(jobs))
+    return jobs
+
+
 def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], bool]:
     from database import get_user_skills
     try:
@@ -517,6 +659,10 @@ def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], boo
     # raw.extend(_fetch_justjoin(city, skills, seniority))
     # raw.extend(_fetch_rocketjobs(city, skills, seniority))
     raw.extend(_fetch_remotive(remotive_categories, seniority))
+    # ATS platforms — direct company board APIs
+    raw.extend(_fetch_greenhouse(city, skills, seniority))
+    raw.extend(_fetch_lever(city, skills, seniority))
+    raw.extend(_fetch_workable(city, skills, seniority))
 
     # Deduplicate: 3 layers
     # 1) link — exact URL match
