@@ -636,6 +636,90 @@ def _fetch_workable(city: str, skills: list[str] = None, seniority: str = "junio
     return jobs
 
 
+# ── Corporate career page fetchers ────────────────────────────────────────────
+
+def _fetch_workday_company(cfg: dict, city: str, seniority: str) -> list[dict]:
+    """Fetch jobs from a single Workday-powered career site."""
+    tenant = cfg["tenant"]
+    instance = cfg["instance"]
+    site = cfg["site"]
+    company_name = cfg["company"]
+    base = f"https://{tenant}.{instance}.myworkdayjobs.com"
+    api = f"{base}/wday/cxs/{tenant}/{site}/jobs"
+
+    jobs: list[dict] = []
+    city_lower = city.lower()
+    offset = 0
+    limit = 20
+
+    while True:
+        r = requests.post(api, json={
+            "appliedFacets": {},
+            "limit": limit,
+            "offset": offset,
+            "searchText": "",
+        }, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+        postings = data.get("jobPostings", [])
+        if not postings:
+            break
+
+        for p in postings:
+            title = p.get("title", "")
+            if any(w in title.lower() for w in _EXCLUDED_TITLE_KEYWORDS):
+                continue
+            if seniority == "junior" and not _is_junior(title, ""):
+                continue
+            loc = p.get("locationsText", "")
+            loc_lower = loc.lower()
+            if city_lower not in loc_lower and "remote" not in loc_lower:
+                continue
+            path = p.get("externalPath", "")
+            link = f"{base}/en-US/{site}/job{path}" if path else ""
+            jobs.append({
+                "title": title,
+                "company": company_name,
+                "link": link,
+                "tech_stack": "",
+                "remote": "remote" in loc_lower,
+                "city": loc or city,
+                "description": "",
+                "source": f"{company_name} Careers",
+                "salary_min": None,
+                "salary_max": None,
+                "salary_currency": None,
+            })
+
+        total = data.get("total", 0)
+        offset += limit
+        if offset >= total:
+            break
+        time.sleep(0.3)
+
+    return jobs
+
+
+def _fetch_corporate_careers(city: str, skills: list[str] = None, seniority: str = "junior") -> list[dict]:
+    """Scrape career pages of top employers via Workday / custom APIs."""
+    from careers_config import WORKDAY_COMPANIES
+
+    jobs: list[dict] = []
+    if WORKDAY_COMPANIES:
+        logger.info("[CorporateCareers] Searching %d Workday sites (%s)...",
+                     len(WORKDAY_COMPANIES), seniority)
+    for cfg in WORKDAY_COMPANIES:
+        try:
+            jobs.extend(_fetch_workday_company(cfg, city, seniority))
+        except Exception as e:
+            logger.error("[CorporateCareers] Error for %s: %s", cfg["company"], e)
+        time.sleep(0.5)
+
+    if jobs:
+        logger.info("[CorporateCareers] Found %d matching jobs.", len(jobs))
+    return jobs
+
+
 def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], bool]:
     from database import get_user_skills
     try:
@@ -663,6 +747,8 @@ def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], boo
     raw.extend(_fetch_greenhouse(city, skills, seniority))
     raw.extend(_fetch_lever(city, skills, seniority))
     raw.extend(_fetch_workable(city, skills, seniority))
+    # Corporate career pages (Workday, etc.)
+    raw.extend(_fetch_corporate_careers(city, skills, seniority))
 
     # Deduplicate: 3 layers
     # 1) link — exact URL match
