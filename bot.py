@@ -13,7 +13,8 @@ from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
 
 from config import (CITIES, SCRAPE_COOLDOWN_MINUTES, JOBS_PAGE_SIZE,
                     DEFAULT_MIN_SCORE, HIGH_SCORE_ALERT, LETTER_MIN_SCORE,
-                    JOB_EXPIRY_DAYS, WEBAPP_URL)
+                    JOB_EXPIRY_DAYS, WEBAPP_URL,
+                    THIN_MONTHS, SEASON_START_MONTHS, THIN_SCRAPE_THRESHOLD)
 from database import (get_jobs_to_apply, count_jobs_to_apply, get_job_link,
                       get_cover_letter, mark_applied, update_job_status,
                       get_stats, get_jobs, update_job, reset_scores,
@@ -23,7 +24,8 @@ from database import (get_jobs_to_apply, count_jobs_to_apply, get_job_link,
                       delete_expired_jobs, get_resume,
                       get_user_skills, set_user_skills,
                       set_resume_file,
-                      get_user_city, set_user_city)
+                      get_user_city, set_user_city,
+                      set_season_notify, get_users_for_season_notify)
 from scraper import search_jobs
 from resume_parser import parse_resume, save_resume, load_resume, validate
 from ai_score import evaluate
@@ -247,6 +249,20 @@ async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
         t(lang_code, "scrape_done", found=len(jobs), saved=saved),
         reply_markup=keyboard,
     )
+
+    # Seasonality hint when results are thin
+    if saved < THIN_SCRAPE_THRESHOLD:
+        month = datetime.datetime.now().month
+        if month in THIN_MONTHS:
+            season_kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton(
+                    t(lang_code, "btn_season_notify"),
+                    callback_data="season:subscribe",
+                ),
+            ]])
+            await msg.reply_text(
+                t(lang_code, "season_thin"), reply_markup=season_kb,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -548,6 +564,20 @@ async def on_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(t(lang_code, "help_text"))
 
 
+async def on_season(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    chat_id = query.message.chat.id
+    lang_code = get_user_lang(chat_id)
+    action = query.data.split(":", 1)[1]
+    if action == "subscribe":
+        set_season_notify(chat_id, True)
+        await query.edit_message_text(t(lang_code, "season_subscribed"))
+    elif action == "unsubscribe":
+        set_season_notify(chat_id, False)
+        await query.edit_message_text(t(lang_code, "season_unsubscribed"))
+
+
 async def on_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -672,6 +702,26 @@ async def _daily_backup(context) -> None:
     await send_backup(context.bot, ADMIN_CHAT_ID)
 
 
+async def _season_notify(context) -> None:
+    """Send proactive notification when internship season starts."""
+    month = datetime.datetime.now().month
+    if month not in SEASON_START_MONTHS:
+        return
+    users = get_users_for_season_notify()
+    if not users:
+        return
+    logger.info("Season notify: sending to %d users (month=%d)", len(users), month)
+    for chat_id in users:
+        lang_code = get_user_lang(chat_id)
+        try:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=t(lang_code, "season_start_notify"),
+            )
+        except Exception as e:
+            logger.warning("Season notify failed for %d: %s", chat_id, e)
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
@@ -688,6 +738,10 @@ def main():
     app.job_queue.run_daily(
         _daily_backup,
         time=datetime.time(hour=3, tzinfo=datetime.timezone.utc),
+    )
+    app.job_queue.run_daily(
+        _season_notify,
+        time=datetime.time(hour=10, tzinfo=datetime.timezone.utc),  # noon CET
     )
 
     scrape_conv = ConversationHandler(
@@ -726,6 +780,7 @@ def main():
     app.add_handler(CallbackQueryHandler(on_apply,     pattern=r"^apply:"))
     app.add_handler(CallbackQueryHandler(on_skip,      pattern=r"^skip:"))
     app.add_handler(CallbackQueryHandler(on_letter,    pattern=r"^letter:"))
+    app.add_handler(CallbackQueryHandler(on_season,    pattern=r"^season:"))
 
     async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         import traceback

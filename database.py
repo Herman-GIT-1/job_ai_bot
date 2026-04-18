@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS resume_file_name TEXT",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS city TEXT DEFAULT 'Warsaw'",
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS content_hash TEXT",
+                "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS season_notify BOOLEAN DEFAULT FALSE",
             ]:
                 cur.execute(ddl)
             cur.execute(
@@ -194,6 +195,27 @@ def set_user_city(chat_id: int, city: str) -> None:
                 (chat_id, city),
             )
         conn.commit()
+
+
+def set_season_notify(chat_id: int, enabled: bool) -> None:
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO user_settings (chat_id, season_notify) VALUES (%s, %s)"
+                " ON CONFLICT (chat_id) DO UPDATE SET season_notify = EXCLUDED.season_notify",
+                (chat_id, enabled),
+            )
+        conn.commit()
+
+
+def get_users_for_season_notify() -> list[int]:
+    """Return chat_ids of users who opted in to season notifications."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT chat_id FROM user_settings WHERE season_notify = TRUE"
+            )
+            return [row[0] for row in cur.fetchall()]
 
 
 def get_resume_file(chat_id: int) -> tuple[str, str] | None:

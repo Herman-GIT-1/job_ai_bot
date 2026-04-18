@@ -43,6 +43,18 @@ TEXTS: dict[str, dict[str, str]] = {
         "scrape_done": "Done. Found: {found}, new in DB: {saved}.",
         "scrape_cancelled": "Search cancelled.",
         "scrape_cooldown": "Please wait {minutes} min before searching again.",
+        # --- seasonality ---
+        "season_thin": (
+            "Internship posting season is quiet right now. "
+            "Most openings appear in Feb\u2013Apr and Aug\u2013Sep."
+        ),
+        "btn_season_notify": "Notify me when season starts",
+        "season_subscribed": "Got it! I'll ping you when the next season opens.",
+        "season_unsubscribed": "Season notifications turned off.",
+        "season_start_notify": (
+            "Internship season is starting! "
+            "Run /scrape to find fresh openings."
+        ),
         # --- scoring ---
         "score_no_resume": "Resume not found. Send a file (.txt, .pdf, .docx) and try again.",
         "score_no_jobs": "No jobs to score. Run /scrape first.",
@@ -191,6 +203,18 @@ TEXTS: dict[str, dict[str, str]] = {
         "scrape_done": "Готово. Найдено: {found}, новых в базе: {saved}.",
         "scrape_cancelled": "Поиск отменён.",
         "scrape_cooldown": "Подожди ещё {minutes} мин. перед следующим поиском.",
+        # --- seasonality ---
+        "season_thin": (
+            "Сезон стажировок сейчас тихий. "
+            "Основные вакансии появляются в фев\u2013апр и авг\u2013сен."
+        ),
+        "btn_season_notify": "Уведомить о начале сезона",
+        "season_subscribed": "Готово! Напишу, когда начнётся новый сезон.",
+        "season_unsubscribed": "Уведомления о сезоне отключены.",
+        "season_start_notify": (
+            "Сезон стажировок стартует! "
+            "Запусти /scrape, чтобы найти свежие вакансии."
+        ),
         # --- scoring ---
         "score_no_resume": "Резюме не найдено. Отправь файл (.txt, .pdf, .docx) и повтори.",
         "score_no_jobs": "Нет вакансий для оценки. Сначала запусти /scrape.",
@@ -339,6 +363,18 @@ TEXTS: dict[str, dict[str, str]] = {
         "scrape_done": "Gotowe. Znalezione: {found}, nowych w bazie: {saved}.",
         "scrape_cancelled": "Wyszukiwanie anulowane.",
         "scrape_cooldown": "Poczekaj jeszcze {minutes} min. przed następnym wyszukiwaniem.",
+        # --- seasonality ---
+        "season_thin": (
+            "Sezon staży jest teraz spokojny. "
+            "Większość ofert pojawia się w lut\u2013kwi i sie\u2013wrz."
+        ),
+        "btn_season_notify": "Powiadom o początku sezonu",
+        "season_subscribed": "Gotowe! Napiszę, gdy zacznie się nowy sezon.",
+        "season_unsubscribed": "Powiadomienia o sezonie wyłączone.",
+        "season_start_notify": (
+            "Sezon staży startuje! "
+            "Uruchom /scrape, by znaleźć nowe oferty."
+        ),
         # --- scoring ---
         "score_no_resume": "CV nie znalezione. Wyślij plik (.txt, .pdf, .docx) i spróbuj ponownie.",
         "score_no_jobs": "Brak ofert do oceny. Najpierw uruchom /scrape.",

@@ -78,6 +78,17 @@ RESUME_MIN_LENGTH = 100    # characters; shorter than this is rejected as invali
 
 JOB_EXPIRY_DAYS = 21       # pending jobs older than this are deleted by daily cleanup
 
+# ── Seasonality ───────────────────────────────────────────────────────────────
+
+# Months considered "thin" for new internship postings in Poland
+THIN_MONTHS = {1, 5, 11, 12}          # Jan, May, Nov, Dec
+
+# Months when proactive "season starting" notification fires
+SEASON_START_MONTHS = {2, 8}           # Feb (summer apps), Aug (autumn apps)
+
+# Minimum saved jobs to consider a scrape "thin" (below → season warning)
+THIN_SCRAPE_THRESHOLD = 5
+
 # ── Telegram Mini App ──────────────────────────────────────────────────────────
 
 import os as _os
