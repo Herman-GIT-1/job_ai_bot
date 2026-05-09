@@ -85,6 +85,8 @@ CREATE TABLE IF NOT EXISTS user_settings (
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS city TEXT DEFAULT 'Warsaw'",
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS content_hash TEXT",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS season_notify BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS season_hint_shown BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE",
             ]:
                 cur.execute(ddl)
             cur.execute(
@@ -206,6 +208,57 @@ def set_season_notify(chat_id: int, enabled: bool) -> None:
                 (chat_id, enabled),
             )
         conn.commit()
+
+
+def get_season_hint_shown(chat_id: int) -> bool:
+    """Return whether the seasonality hint has already been shown to this user."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT season_hint_shown FROM user_settings WHERE chat_id = %s",
+                (chat_id,),
+            )
+            row = cur.fetchone()
+    return bool(row[0]) if row else False
+
+
+def mark_season_hint_shown(chat_id: int) -> None:
+    try:
+        with _get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO user_settings (chat_id, season_hint_shown) VALUES (%s, TRUE)"
+                    " ON CONFLICT (chat_id) DO UPDATE SET season_hint_shown = TRUE",
+                    (chat_id,),
+                )
+            conn.commit()
+    except Exception as e:
+        logger.warning("mark_season_hint_shown failed for %s: %s", chat_id, e)
+
+
+def is_premium(chat_id: int) -> bool:
+    """Return True if the user has premium access."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT is_premium FROM user_settings WHERE chat_id = %s", (chat_id,)
+            )
+            row = cur.fetchone()
+    return bool(row[0]) if row else False
+
+
+def set_premium(chat_id: int, value: bool) -> None:
+    try:
+        with _get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO user_settings (chat_id, is_premium) VALUES (%s, %s)"
+                    " ON CONFLICT (chat_id) DO UPDATE SET is_premium = EXCLUDED.is_premium",
+                    (chat_id, value),
+                )
+            conn.commit()
+    except Exception as e:
+        logger.warning("set_premium failed for %s: %s", chat_id, e)
 
 
 def get_users_for_season_notify() -> list[int]:
@@ -344,6 +397,23 @@ def get_jobs_to_apply(
                 " ORDER BY score DESC"
                 " LIMIT %s OFFSET %s",
                 (chat_id, min_score, limit, offset),
+            )
+            return cur.fetchall()
+
+
+def get_unscored_jobs(
+    chat_id: int, limit: int = 100, offset: int = 0
+) -> list:
+    """Return jobs scraped without AI scoring (score IS NULL), newest first."""
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, title, company, link, description,"
+                "       salary_min, salary_max, salary_currency, source, city"
+                " FROM jobs WHERE chat_id = %s AND score IS NULL AND applied = 0"
+                " ORDER BY created_at DESC NULLS LAST"
+                " LIMIT %s OFFSET %s",
+                (chat_id, limit, offset),
             )
             return cur.fetchall()
 
