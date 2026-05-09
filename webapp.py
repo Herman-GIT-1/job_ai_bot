@@ -28,6 +28,7 @@ from database import (
     get_jobs_by_status, move_to_status, get_cover_letter,
     get_stats, get_resume, get_user_lang, get_resume_file,
     get_user_city, set_user_city, get_user_skills, set_user_skills,
+    get_unscored_jobs,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,6 +105,28 @@ async def api_jobs(chat_id: int = Depends(_auth)):
             "salary_min": salary_min,
             "salary_max": salary_max,
             "salary_currency": salary_currency,
+        })
+    return {"jobs": jobs}
+
+
+@app.get("/api/jobs/unscored")
+async def api_jobs_unscored(chat_id: int = Depends(_auth)):
+    rows = get_unscored_jobs(chat_id, limit=100, offset=0)
+    jobs = []
+    for row in rows:
+        job_id, title, company, link, description, \
+            salary_min, salary_max, salary_currency, source, city = row
+        jobs.append({
+            "id": job_id,
+            "title": title or "",
+            "company": company or "",
+            "link": link or "",
+            "description": (description or "")[:500],
+            "salary_min": salary_min,
+            "salary_max": salary_max,
+            "salary_currency": salary_currency,
+            "source": source or "",
+            "city": city or "",
         })
     return {"jobs": jobs}
 
