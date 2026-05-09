@@ -621,6 +621,7 @@ body {
 
 <!-- Tab bar (shown only in My List view) -->
 <div class="tabs" id="tab-bar" style="display:none">
+  <button class="tab"        data-tab="unscored"     onclick="switchTab('unscored')">🆕<br>New</button>
   <button class="tab active" data-tab="saved"        onclick="switchTab('saved')">💾<br>Saved</button>
   <button class="tab"        data-tab="applied"      onclick="switchTab('applied')">✅<br>Applied</button>
   <button class="tab"        data-tab="interviewing" onclick="switchTab('interviewing')">📞<br>Interview</button>
@@ -821,6 +822,8 @@ async function loadTab(tab) {
     let data;
     if (tab === 'saved') {
       data = await apiFetch('/api/saved');
+    } else if (tab === 'unscored') {
+      data = await apiFetch('/api/jobs/unscored');
     } else {
       data = await apiFetch('/api/tracker?status=' + tab);
     }
@@ -1081,6 +1084,7 @@ async function clearFilters() {
 
 // ── Tab renderers ──────────────────────────────────────────────────────────
 const TAB_EMPTY = {
+  unscored:     ['🔍', 'No new jobs', 'Run /search in the bot to fetch jobs by your filters.'],
   saved:        ['📋', 'Nothing saved yet', 'Swipe right or press Save to add vacancies here.'],
   applied:      ['✅', 'No applications yet', 'Press Apply on a saved vacancy to track it here.'],
   interviewing: ['📞', 'No interviews yet', 'Move an applied vacancy to Interview to track it here.'],
@@ -1103,13 +1107,16 @@ function buildListItem(tab, job) {
   item.className = 'list-item';
   item.id = 'item-' + job.id;
   const actionsHtml = buildItemActions(tab, job);
+  const scoreHtml = (tab === 'unscored')
+    ? ''
+    : `<span class="list-item-score">${job.score}/10</span>`;
   item.innerHTML = `
     <div class="list-item-top">
       <div class="list-item-info">
         <div class="list-item-title">${esc(job.title)}</div>
         <div class="list-item-company">🏢 ${esc(job.company)}</div>
       </div>
-      <span class="list-item-score">${job.score}/10</span>
+      ${scoreHtml}
     </div>
     <div class="item-actions">${actionsHtml}</div>
   `;
@@ -1119,6 +1126,11 @@ function buildListItem(tab, job) {
 function buildItemActions(tab, job) {
   const id   = job.id;
   const link = esc(job.link);
+  if (tab === 'unscored') {
+    return `
+      <button class="item-btn item-btn-apply" onclick="openLink('${link}')">↗ Open</button>
+    `;
+  }
   if (tab === 'saved') {
     const letterBtn = job.cover_letter
       ? `<button class="item-btn item-btn-letter" onclick="sendLetter(${id},this)">📄 Letter</button>`
@@ -1158,6 +1170,11 @@ function buildItemActions(tab, job) {
 }
 
 // ── Item actions ───────────────────────────────────────────────────────────
+function openLink(link) {
+  if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+  tg.openLink(link);
+}
+
 async function applyJob(jobId, link, btn) {
   btn.disabled = true;
   btn.textContent = 'Opened ✓';
@@ -1331,7 +1348,14 @@ function fly(type) {
 }
 
 // ── Start ──────────────────────────────────────────────────────────────────
-waitForInitData(5, loadJobs);
+function bootstrap() {
+  if (location.hash === '#unscored') {
+    openMyList('unscored');
+  } else {
+    loadJobs();
+  }
+}
+waitForInitData(5, bootstrap);
 </script>
 </body>
 </html>
