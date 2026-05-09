@@ -12,6 +12,7 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "start_with_resume": (
             "Hi! Resume already loaded.\n\n"
+            "/search — quick search by filters (free)\n"
             "/scrape 💎 — AI-powered search (Premium)\n"
             "/score 💎 — score found jobs with AI (Premium)\n"
             "/jobs — browse jobs in Mini App\n"
@@ -43,6 +44,18 @@ TEXTS: dict[str, dict[str, str]] = {
         "scrape_done": "Done. Found: {found}, new in DB: {saved}.",
         "scrape_cancelled": "Search cancelled.",
         "scrape_cooldown": "Please wait {minutes} min before searching again.",
+        # --- search (free, no AI) ---
+        "search_searching": "Searching jobs in {city}… (free, no AI)",
+        "search_skills_active": "Active skills filter: {skills}",
+        "search_no_filters_hint": "Tip: set a skills filter for more relevant results.",
+        "search_done": (
+            "Done. Found: {found}, new in DB: {saved}.\n"
+            "Duplicates from previous searches are skipped.\n"
+            "These jobs aren't AI-scored — Premium can score them."
+        ),
+        "search_cancelled": "Search cancelled.",
+        "search_cooldown": "Please wait {minutes} min before next search.",
+        "btn_browse_unscored": "📋 Browse new jobs",
         # --- premium ---
         "premium_required": (
             "💎 This feature requires Premium.\n"
@@ -130,6 +143,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "/feedback 💎 — get AI feedback on your resume\n"
             "Send file — upload (.txt, .pdf, .docx)\n\n"
             "🔍 Search\n"
+            "/search — quick search by filters (free, no AI)\n"
             "/scrape 💎 — AI-powered search using your resume\n"
             "/cancel — cancel city selection\n\n"
             "⭐ Scoring\n"
@@ -177,6 +191,7 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "start_with_resume": (
             "Привет! Резюме уже загружено.\n\n"
+            "/search — быстрый поиск по фильтрам (бесплатно)\n"
             "/scrape 💎 — AI-поиск (Premium)\n"
             "/score 💎 — оценить вакансии через AI (Premium)\n"
             "/jobs — просмотр вакансий в Mini App\n"
@@ -208,6 +223,18 @@ TEXTS: dict[str, dict[str, str]] = {
         "scrape_done": "Готово. Найдено: {found}, новых в базе: {saved}.",
         "scrape_cancelled": "Поиск отменён.",
         "scrape_cooldown": "Подожди ещё {minutes} мин. перед следующим поиском.",
+        # --- search (бесплатно, без AI) ---
+        "search_searching": "Ищу вакансии в городе {city}… (бесплатно, без AI)",
+        "search_skills_active": "Активный фильтр навыков: {skills}",
+        "search_no_filters_hint": "Подсказка: задай фильтр навыков для более релевантных результатов.",
+        "search_done": (
+            "Готово. Найдено: {found}, новых в базе: {saved}.\n"
+            "Дубликаты из прошлых поисков пропущены.\n"
+            "Эти вакансии не оценены AI — Premium может их оценить."
+        ),
+        "search_cancelled": "Поиск отменён.",
+        "search_cooldown": "Подожди ещё {minutes} мин. перед следующим поиском.",
+        "btn_browse_unscored": "📋 Смотреть новые вакансии",
         # --- premium ---
         "premium_required": (
             "💎 Эта функция доступна только Premium-пользователям.\n"
@@ -295,6 +322,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "/feedback 💎 — получить AI-анализ резюме\n"
             "Отправить файл — загрузить (.txt, .pdf, .docx)\n\n"
             "🔍 Поиск\n"
+            "/search — быстрый поиск по фильтрам (бесплатно, без AI)\n"
             "/scrape 💎 — AI-поиск на основе твоего резюме\n"
             "/cancel — отменить выбор города\n\n"
             "⭐ Оценка\n"
@@ -342,6 +370,7 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "start_with_resume": (
             "Cześć! CV już wgrane.\n\n"
+            "/search — szybkie wyszukiwanie po filtrach (darmowe)\n"
             "/scrape 💎 — wyszukiwanie wspomagane AI (Premium)\n"
             "/score 💎 — oceń oferty przez AI (Premium)\n"
             "/jobs — przeglądaj oferty w Mini App\n"
@@ -373,6 +402,18 @@ TEXTS: dict[str, dict[str, str]] = {
         "scrape_done": "Gotowe. Znalezione: {found}, nowych w bazie: {saved}.",
         "scrape_cancelled": "Wyszukiwanie anulowane.",
         "scrape_cooldown": "Poczekaj jeszcze {minutes} min. przed następnym wyszukiwaniem.",
+        # --- search (darmowe, bez AI) ---
+        "search_searching": "Szukam ofert w mieście {city}… (darmowe, bez AI)",
+        "search_skills_active": "Aktywny filtr umiejętności: {skills}",
+        "search_no_filters_hint": "Wskazówka: ustaw filtr umiejętności dla trafniejszych wyników.",
+        "search_done": (
+            "Gotowe. Znalezione: {found}, nowych w bazie: {saved}.\n"
+            "Duplikaty z poprzednich wyszukiwań pominięto.\n"
+            "Te oferty nie są ocenione przez AI — Premium może je ocenić."
+        ),
+        "search_cancelled": "Wyszukiwanie anulowane.",
+        "search_cooldown": "Poczekaj jeszcze {minutes} min. przed następnym wyszukiwaniem.",
+        "btn_browse_unscored": "📋 Przeglądaj nowe oferty",
         # --- premium ---
         "premium_required": (
             "💎 Ta funkcja wymaga Premium.\n"
@@ -460,6 +501,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "/feedback 💎 — analiza CV przez AI\n"
             "Wyślij plik — wgraj (.txt, .pdf, .docx)\n\n"
             "🔍 Wyszukiwanie\n"
+            "/search — szybkie wyszukiwanie po filtrach (darmowe, bez AI)\n"
             "/scrape 💎 — wyszukiwanie wspomagane AI na podstawie CV\n"
             "/cancel — anuluj wybór miasta\n\n"
             "⭐ Ocenianie\n"

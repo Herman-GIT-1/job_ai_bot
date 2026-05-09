@@ -41,7 +41,8 @@ logger = logging.getLogger(__name__)
 TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
 ADMIN_CHAT_ID = int(os.environ["TELEGRAM_CHAT_ID"])
 
-ASK_CITY = 0   # scrape_conv: waiting for city pick/type
+ASK_CITY = 0          # scrape_conv: waiting for city pick/type
+ASK_SEARCH_CITY = 1   # search_conv: waiting for city pick/type (free /search)
 
 
 # ---------------------------------------------------------------------------
@@ -285,6 +286,64 @@ async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
             mark_season_hint_shown(chat_id)
 
 
+async def _run_search(city: str, msg, chat_id: int, lang_code: str) -> None:
+    """Free, AI-less scrape: filters only (city + skills). Saves with score=NULL."""
+    if chat_id != ADMIN_CHAT_ID:
+        last = get_last_scrape(chat_id)
+        if last is not None:
+            elapsed = datetime.datetime.now(datetime.timezone.utc) - last
+            remaining = SCRAPE_COOLDOWN_MINUTES * 60 - int(elapsed.total_seconds())
+            if remaining > 0:
+                await msg.reply_text(
+                    t(lang_code, "search_cooldown", minutes=remaining // 60 + 1)
+                )
+                return
+
+    set_last_scrape(chat_id)
+
+    skills = get_user_skills(chat_id)
+    search_msg = t(lang_code, "search_searching", city=city)
+    if skills:
+        search_msg += "\n" + t(lang_code, "search_skills_active", skills=", ".join(skills))
+    else:
+        search_msg += "\n" + t(lang_code, "search_no_filters_hint")
+    await msg.reply_text(search_msg)
+
+    loop = asyncio.get_running_loop()
+    jobs, _ = await loop.run_in_executor(
+        None, lambda: search_jobs(city, chat_id, use_ai=False)
+    )
+
+    saved = sum(1 for job in jobs if save_job(job, chat_id))
+
+    keyboard = None
+    if WEBAPP_URL:
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton(
+                t(lang_code, "btn_browse_unscored"),
+                web_app=WebAppInfo(url=WEBAPP_URL + "#unscored"),
+            ),
+        ]])
+    await msg.reply_text(
+        t(lang_code, "search_done", found=len(jobs), saved=saved),
+        reply_markup=keyboard,
+    )
+
+    if saved < THIN_SCRAPE_THRESHOLD:
+        month = datetime.datetime.now().month
+        if month in THIN_MONTHS and not get_season_hint_shown(chat_id):
+            season_kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton(
+                    t(lang_code, "btn_season_notify"),
+                    callback_data="season:subscribe",
+                ),
+            ]])
+            await msg.reply_text(
+                t(lang_code, "season_thin"), reply_markup=season_kb,
+            )
+            mark_season_hint_shown(chat_id)
+
+
 # ---------------------------------------------------------------------------
 # Command handlers
 # ---------------------------------------------------------------------------
@@ -351,6 +410,35 @@ async def cmd_scrape_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_scrape_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang_code = _lang(update)
     await update.message.reply_text(t(lang_code, "scrape_cancelled"))
+    return ConversationHandler.END
+
+
+async def cmd_search_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    lang_code = _lang(update)
+    saved_city = get_user_city(chat_id)
+    if saved_city:
+        await _run_search(saved_city, update.message, chat_id, lang_code)
+        return ConversationHandler.END
+    await update.message.reply_text(
+        t(lang_code, "scrape_ask_city"),
+        reply_markup=_city_keyboard(),
+    )
+    return ASK_SEARCH_CITY
+
+
+async def cmd_search_run(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """User typed a custom city name for /search."""
+    city = update.message.text.strip()
+    chat_id = update.effective_chat.id
+    set_user_city(chat_id, city)
+    await _run_search(city, update.message, chat_id, _lang(update))
+    return ConversationHandler.END
+
+
+async def cmd_search_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    await update.message.reply_text(t(lang_code, "search_cancelled"))
     return ConversationHandler.END
 
 
@@ -699,6 +787,19 @@ async def conv_city_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def conv_search_city_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles city quick-pick button while inside the search conversation."""
+    query = update.callback_query
+    await query.answer()
+    chat_id = query.message.chat.id
+    city = query.data.split(":", 1)[1]
+    lang_code = get_user_lang(chat_id)
+    set_user_city(chat_id, city)
+    await query.edit_message_reply_markup(reply_markup=None)
+    await _run_search(city, query.message, chat_id, lang_code)
+    return ConversationHandler.END
+
+
 # ---------------------------------------------------------------------------
 # App entry point
 # ---------------------------------------------------------------------------
@@ -706,12 +807,13 @@ async def conv_city_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def _set_commands(app: Application) -> None:
     await app.bot.set_my_commands([
         ("start",    "Welcome message"),
-        ("scrape",   "Search for jobs"),
-        ("score",    "Score jobs with AI"),
-        ("rescore",  "Reset scores and re-score"),
+        ("search",   "Quick search by filters (free)"),
+        ("scrape",   "AI-powered search (Premium)"),
+        ("score",    "Score jobs with AI (Premium)"),
+        ("rescore",  "Reset scores and re-score (Premium)"),
         ("jobs",     "Show top jobs (optional min score)"),
         ("tracker",  "Track your applications"),
-        ("feedback", "Get AI feedback on your resume"),
+        ("feedback", "Get AI feedback on your resume (Premium)"),
         ("resume",   "View current resume"),
         ("stats",    "Statistics"),
         ("help",     "Command reference"),
@@ -788,6 +890,17 @@ def main():
         fallbacks=[CommandHandler("cancel", cmd_scrape_cancel)],
     )
 
+    search_conv = ConversationHandler(
+        entry_points=[CommandHandler("search", cmd_search_ask_city)],
+        states={
+            ASK_SEARCH_CITY: [
+                CallbackQueryHandler(conv_search_city_button, pattern="^city:"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_search_run),
+            ],
+        },
+        fallbacks=[CommandHandler("cancel", cmd_search_cancel)],
+    )
+
     app.add_handler(CommandHandler("start",    cmd_start))
     app.add_handler(CommandHandler("help",     cmd_help))
     app.add_handler(CommandHandler("language", cmd_language))
@@ -801,6 +914,7 @@ def main():
     app.add_handler(CommandHandler("backup",   cmd_backup))
     app.add_handler(CommandHandler("stop",     cmd_stop))
     app.add_handler(scrape_conv)
+    app.add_handler(search_conv)
 
     app.add_handler(MessageHandler(filters.Document.ALL, cmd_resume_upload))
 
