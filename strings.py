@@ -61,6 +61,14 @@ TEXTS: dict[str, dict[str, str]] = {
             "💎 This feature requires Premium.\n"
             "Contact the bot owner to upgrade."
         ),
+        "premium_granted": (
+            "🎉 Premium activated!\n"
+            "/scrape, /score, /letter, /feedback are now available."
+        ),
+        "premium_granted_admin": "Premium granted to chat_id {chat_id}.",
+        "premium_revoked_admin": "Premium revoked for chat_id {chat_id}.",
+        "grant_premium_usage": "Usage: /grant_premium <chat_id>",
+        "revoke_premium_usage": "Usage: /revoke_premium <chat_id>",
         # --- seasonality ---
         "season_thin": (
             "Internship posting season is quiet right now. "
@@ -240,6 +248,14 @@ TEXTS: dict[str, dict[str, str]] = {
             "💎 Эта функция доступна только Premium-пользователям.\n"
             "Свяжись с владельцем бота, чтобы получить доступ."
         ),
+        "premium_granted": (
+            "🎉 Premium активирован!\n"
+            "/scrape, /score, /letter, /feedback теперь доступны."
+        ),
+        "premium_granted_admin": "Premium выдан chat_id {chat_id}.",
+        "premium_revoked_admin": "Premium отозван у chat_id {chat_id}.",
+        "grant_premium_usage": "Использование: /grant_premium <chat_id>",
+        "revoke_premium_usage": "Использование: /revoke_premium <chat_id>",
         # --- seasonality ---
         "season_thin": (
             "Сезон стажировок сейчас тихий. "
@@ -419,6 +435,14 @@ TEXTS: dict[str, dict[str, str]] = {
             "💎 Ta funkcja wymaga Premium.\n"
             "Skontaktuj się z właścicielem bota, aby uzyskać dostęp."
         ),
+        "premium_granted": (
+            "🎉 Premium aktywowany!\n"
+            "/scrape, /score, /letter, /feedback są teraz dostępne."
+        ),
+        "premium_granted_admin": "Premium przyznany dla chat_id {chat_id}.",
+        "premium_revoked_admin": "Premium cofnięty dla chat_id {chat_id}.",
+        "grant_premium_usage": "Użycie: /grant_premium <chat_id>",
+        "revoke_premium_usage": "Użycie: /revoke_premium <chat_id>",
         # --- seasonality ---
         "season_thin": (
             "Sezon staży jest teraz spokojny. "

@@ -270,7 +270,7 @@ async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
         reply_markup=keyboard,
     )
 
-    # Seasonality hint when results are thin
+    # Seasonality hint when results are thin — shown at most once per user
     if saved < THIN_SCRAPE_THRESHOLD:
         month = datetime.datetime.now().month
         if month in THIN_MONTHS and not get_season_hint_shown(chat_id):
@@ -599,6 +599,47 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.application.stop()
 
 
+@admin_only
+async def cmd_grant_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    if not context.args:
+        await update.message.reply_text(t(lang_code, "grant_premium_usage"))
+        return
+    try:
+        target = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text(t(lang_code, "grant_premium_usage"))
+        return
+    set_premium(target, True)
+    await update.message.reply_text(
+        t(lang_code, "premium_granted_admin", chat_id=target)
+    )
+    try:
+        target_lang = get_user_lang(target)
+        await context.bot.send_message(
+            chat_id=target, text=t(target_lang, "premium_granted")
+        )
+    except Exception as e:
+        logger.warning("premium_granted notify failed for %s: %s", target, e)
+
+
+@admin_only
+async def cmd_revoke_premium(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang_code = _lang(update)
+    if not context.args:
+        await update.message.reply_text(t(lang_code, "revoke_premium_usage"))
+        return
+    try:
+        target = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text(t(lang_code, "revoke_premium_usage"))
+        return
+    set_premium(target, False)
+    await update.message.reply_text(
+        t(lang_code, "premium_revoked_admin", chat_id=target)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Inline button callback handlers (one function per callback type)
 # ---------------------------------------------------------------------------
@@ -913,6 +954,8 @@ def main():
     app.add_handler(CommandHandler("stats",    cmd_stats))
     app.add_handler(CommandHandler("backup",   cmd_backup))
     app.add_handler(CommandHandler("stop",     cmd_stop))
+    app.add_handler(CommandHandler("grant_premium",  cmd_grant_premium))
+    app.add_handler(CommandHandler("revoke_premium", cmd_revoke_premium))
     app.add_handler(scrape_conv)
     app.add_handler(search_conv)
 
