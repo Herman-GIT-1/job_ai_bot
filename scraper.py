@@ -720,21 +720,40 @@ def _fetch_corporate_careers(city: str, skills: list[str] = None, seniority: str
     return jobs
 
 
-def search_jobs(city: str = "Warsaw", chat_id: int = 0) -> tuple[list[dict], bool]:
+def search_jobs(
+    city: str = "Warsaw", chat_id: int = 0, use_ai: bool = True
+) -> tuple[list[dict], bool]:
     from database import get_user_skills
-    try:
-        resume_text = load_resume(chat_id)
-    except FileNotFoundError:
-        resume_text = ""
-        logger.warning("Resume not found — using fallback queries.")
 
-    skills   = get_user_skills(chat_id)
+    skills    = get_user_skills(chat_id)
     seniority = _detect_seniority(skills)
     if skills:
         logger.info("Skills filter active (%s mode): %s", seniority, skills)
 
-    queries, used_fallback, remotive_categories = build_queries(resume_text, city, skills)
-    logger.info("Adzuna queries: %d%s", len(queries), " (fallback)" if used_fallback else "")
+    if use_ai:
+        try:
+            resume_text = load_resume(chat_id)
+        except FileNotFoundError:
+            resume_text = ""
+            logger.warning("Resume not found — using fallback queries.")
+        queries, used_fallback, remotive_categories = build_queries(resume_text, city, skills)
+        logger.info("Adzuna queries: %d%s", len(queries), " (fallback)" if used_fallback else "")
+    else:
+        specialties = _specialty_list(skills)
+        if specialties:
+            prefix = "senior " if seniority == "senior" else "junior "
+            queries = [prefix + s for s in specialties[:6]]
+        else:
+            queries = (
+                ["senior developer", "senior python developer", "senior data analyst",
+                 "senior financial analyst", "python developer", "data analyst"]
+                if seniority == "senior"
+                else ["junior developer", "intern IT", "junior python",
+                      "stażysta programista", "junior analyst", "intern finance"]
+            )
+        remotive_categories = ["software-dev", "data", "all-others"]
+        used_fallback = False
+        logger.info("No-AI search mode: %d queries", len(queries))
     logger.info("Remotive categories: %s | seniority: %s", remotive_categories, seniority)
 
     raw = []
