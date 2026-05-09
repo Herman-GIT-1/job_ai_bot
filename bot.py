@@ -25,7 +25,9 @@ from database import (get_jobs_to_apply, count_jobs_to_apply, get_job_link,
                       get_user_skills, set_user_skills,
                       set_resume_file,
                       get_user_city, set_user_city,
-                      set_season_notify, get_users_for_season_notify)
+                      set_season_notify, get_users_for_season_notify,
+                      get_season_hint_shown, mark_season_hint_shown,
+                      is_premium, set_premium)
 from scraper import search_jobs
 from resume_parser import parse_resume, save_resume, load_resume, validate
 from ai_score import evaluate
@@ -58,6 +60,23 @@ def admin_only(func):
             if update.message:
                 await update.message.reply_text(t("en", "access_denied"))
             return
+        return await func(update, context)
+    return wrapper
+
+
+def premium_only(func):
+    """Gate AI-powered handlers behind premium. Admin always passes."""
+    @functools.wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        chat_id = update.effective_chat.id
+        if chat_id != ADMIN_CHAT_ID and not is_premium(chat_id):
+            lang = get_user_lang(chat_id)
+            msg = update.message or (update.callback_query and update.callback_query.message)
+            if msg:
+                await msg.reply_text(t(lang, "premium_required"))
+            if update.callback_query:
+                await update.callback_query.answer()
+            return ConversationHandler.END
         return await func(update, context)
     return wrapper
 
@@ -253,7 +272,7 @@ async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
     # Seasonality hint when results are thin
     if saved < THIN_SCRAPE_THRESHOLD:
         month = datetime.datetime.now().month
-        if month in THIN_MONTHS:
+        if month in THIN_MONTHS and not get_season_hint_shown(chat_id):
             season_kb = InlineKeyboardMarkup([[
                 InlineKeyboardButton(
                     t(lang_code, "btn_season_notify"),
@@ -263,6 +282,7 @@ async def _run_scrape(city: str, msg, chat_id: int, lang_code: str) -> None:
             await msg.reply_text(
                 t(lang_code, "season_thin"), reply_markup=season_kb,
             )
+            mark_season_hint_shown(chat_id)
 
 
 # ---------------------------------------------------------------------------
@@ -286,11 +306,13 @@ async def cmd_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(t(lang_code, "lang_choose"), reply_markup=_lang_keyboard())
 
 
+@premium_only
 async def cmd_score(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     await _run_score(update.message, chat_id, _lang(update))
 
 
+@premium_only
 async def cmd_rescore(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     lang_code = _lang(update)
@@ -302,6 +324,7 @@ async def cmd_rescore(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _run_score(update.message, chat_id, lang_code)
 
 
+@premium_only
 async def cmd_scrape_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     lang_code = _lang(update)
@@ -413,6 +436,7 @@ async def cmd_help(update: Update, _context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(t(lang_code, "help_text"))
 
 
+@premium_only
 async def cmd_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     lang_code = _lang(update)
@@ -552,8 +576,14 @@ async def on_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await _send_jobs(query.message, chat_id, DEFAULT_MIN_SCORE, lang_code)
     elif action == "score":
+        if chat_id != ADMIN_CHAT_ID and not is_premium(chat_id):
+            await query.message.reply_text(t(lang_code, "premium_required"))
+            return
         await _run_score(query.message, chat_id, lang_code)
     elif action == "rescore":
+        if chat_id != ADMIN_CHAT_ID and not is_premium(chat_id):
+            await query.message.reply_text(t(lang_code, "premium_required"))
+            return
         count = reset_scores_selective(chat_id)
         if count == 0:
             await query.message.reply_text(t(lang_code, "rescore_nothing"))
@@ -635,6 +665,9 @@ async def on_letter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     chat_id = query.message.chat.id
     lang_code = get_user_lang(chat_id)
+    if chat_id != ADMIN_CHAT_ID and not is_premium(chat_id):
+        await query.message.reply_text(t(lang_code, "premium_required"))
+        return
     job_id = int(query.data.split(":", 1)[1])
     row = get_cover_letter(job_id, chat_id)
     if not row or not row[2]:

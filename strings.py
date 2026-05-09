@@ -12,8 +12,8 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "start_with_resume": (
             "Hi! Resume already loaded.\n\n"
-            "/scrape — find jobs (will ask for a city)\n"
-            "/score — score found jobs with AI\n"
+            "/scrape 💎 — AI-powered search (Premium)\n"
+            "/score 💎 — score found jobs with AI (Premium)\n"
             "/jobs — browse jobs in Mini App\n"
             "/tracker — track your applications\n"
             "/resume — view current resume\n"
@@ -43,6 +43,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "scrape_done": "Done. Found: {found}, new in DB: {saved}.",
         "scrape_cancelled": "Search cancelled.",
         "scrape_cooldown": "Please wait {minutes} min before searching again.",
+        # --- premium ---
+        "premium_required": (
+            "💎 This feature requires Premium.\n"
+            "Contact the bot owner to upgrade."
+        ),
         # --- seasonality ---
         "season_thin": (
             "Internship posting season is quiet right now. "
@@ -122,14 +127,14 @@ TEXTS: dict[str, dict[str, str]] = {
             "🤖 Job Bot — Command Reference\n\n"
             "📄 Resume\n"
             "/resume — view current resume\n"
-            "/feedback — get AI feedback on your resume\n"
+            "/feedback 💎 — get AI feedback on your resume\n"
             "Send file — upload (.txt, .pdf, .docx)\n\n"
             "🔍 Search\n"
-            "/scrape — search for jobs (asks for city)\n"
+            "/scrape 💎 — AI-powered search using your resume\n"
             "/cancel — cancel city selection\n\n"
             "⭐ Scoring\n"
-            "/score — score all found jobs with AI\n"
-            "/rescore — reset scores and re-score\n"
+            "/score 💎 — score all found jobs with AI\n"
+            "/rescore 💎 — reset scores and re-score\n"
             "/jobs — browse jobs in Mini App\n\n"
             "📋 Tracking\n"
             "/tracker — view and manage your applications\n\n"
@@ -172,8 +177,8 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "start_with_resume": (
             "Привет! Резюме уже загружено.\n\n"
-            "/scrape — найти вакансии (спросит город)\n"
-            "/score — оценить вакансии через AI\n"
+            "/scrape 💎 — AI-поиск (Premium)\n"
+            "/score 💎 — оценить вакансии через AI (Premium)\n"
             "/jobs — просмотр вакансий в Mini App\n"
             "/tracker — отслеживать заявки\n"
             "/resume — показать резюме\n"
@@ -203,6 +208,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "scrape_done": "Готово. Найдено: {found}, новых в базе: {saved}.",
         "scrape_cancelled": "Поиск отменён.",
         "scrape_cooldown": "Подожди ещё {minutes} мин. перед следующим поиском.",
+        # --- premium ---
+        "premium_required": (
+            "💎 Эта функция доступна только Premium-пользователям.\n"
+            "Свяжись с владельцем бота, чтобы получить доступ."
+        ),
         # --- seasonality ---
         "season_thin": (
             "Сезон стажировок сейчас тихий. "
@@ -282,14 +292,14 @@ TEXTS: dict[str, dict[str, str]] = {
             "🤖 Job Bot — Список команд\n\n"
             "📄 Резюме\n"
             "/resume — посмотреть текущее резюме\n"
-            "/feedback — получить AI-анализ резюме\n"
+            "/feedback 💎 — получить AI-анализ резюме\n"
             "Отправить файл — загрузить (.txt, .pdf, .docx)\n\n"
             "🔍 Поиск\n"
-            "/scrape — искать вакансии (спросит город)\n"
+            "/scrape 💎 — AI-поиск на основе твоего резюме\n"
             "/cancel — отменить выбор города\n\n"
             "⭐ Оценка\n"
-            "/score — оценить все найденные вакансии через AI\n"
-            "/rescore — сбросить оценки и переоценить\n"
+            "/score 💎 — оценить все найденные вакансии через AI\n"
+            "/rescore 💎 — сбросить оценки и переоценить\n"
             "/jobs — просмотр вакансий в Mini App\n\n"
             "📋 Отслеживание\n"
             "/tracker — просмотр и управление заявками\n\n"
@@ -332,8 +342,8 @@ TEXTS: dict[str, dict[str, str]] = {
         ),
         "start_with_resume": (
             "Cześć! CV już wgrane.\n\n"
-            "/scrape — znajdź oferty (zapyta o miasto)\n"
-            "/score — ocen oferty przez AI\n"
+            "/scrape 💎 — wyszukiwanie wspomagane AI (Premium)\n"
+            "/score 💎 — oceń oferty przez AI (Premium)\n"
             "/jobs — przeglądaj oferty w Mini App\n"
             "/tracker — śledź swoje aplikacje\n"
             "/resume — pokaż aktualne CV\n"
@@ -363,6 +373,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "scrape_done": "Gotowe. Znalezione: {found}, nowych w bazie: {saved}.",
         "scrape_cancelled": "Wyszukiwanie anulowane.",
         "scrape_cooldown": "Poczekaj jeszcze {minutes} min. przed następnym wyszukiwaniem.",
+        # --- premium ---
+        "premium_required": (
+            "💎 Ta funkcja wymaga Premium.\n"
+            "Skontaktuj się z właścicielem bota, aby uzyskać dostęp."
+        ),
         # --- seasonality ---
         "season_thin": (
             "Sezon staży jest teraz spokojny. "
@@ -442,14 +457,14 @@ TEXTS: dict[str, dict[str, str]] = {
             "🤖 Job Bot — Lista komend\n\n"
             "📄 CV\n"
             "/resume — sprawdź aktualne CV\n"
-            "/feedback — analiza CV przez AI\n"
+            "/feedback 💎 — analiza CV przez AI\n"
             "Wyślij plik — wgraj (.txt, .pdf, .docx)\n\n"
             "🔍 Wyszukiwanie\n"
-            "/scrape — szukaj ofert (zapyta o miasto)\n"
+            "/scrape 💎 — wyszukiwanie wspomagane AI na podstawie CV\n"
             "/cancel — anuluj wybór miasta\n\n"
             "⭐ Ocenianie\n"
-            "/score — oceń oferty przez AI\n"
-            "/rescore — zresetuj oceny i oceń ponownie\n"
+            "/score 💎 — oceń oferty przez AI\n"
+            "/rescore 💎 — zresetuj oceny i oceń ponownie\n"
             "/jobs — przeglądaj oferty w Mini App\n\n"
             "📋 Śledzenie\n"
             "/tracker — zarządzaj swoimi aplikacjami\n\n"
