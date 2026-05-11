@@ -83,7 +83,12 @@ async def root():
 
 @app.get("/app")
 async def webapp_index():
-    return FileResponse(os.path.join(BASE_DIR, "static", "index.html"))
+    # no-store: Telegram WebView caches static assets aggressively; without this
+    # users keep seeing an old index.html after a deploy.
+    return FileResponse(
+        os.path.join(BASE_DIR, "static", "index.html"),
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/api/jobs")
