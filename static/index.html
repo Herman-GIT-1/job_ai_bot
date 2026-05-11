@@ -687,6 +687,7 @@ function waitForInitData(retries, callback) {
 
 // ── State ──────────────────────────────────────────────────────────────────
 let jobs = [];
+let jobsLoaded = false;
 let cur  = 0;
 let frontCard = null;
 let dragStartX = 0, dragDeltaX = 0;
@@ -752,6 +753,7 @@ function showView(view) {
   document.getElementById('nav-filters').classList.toggle('active', isFilters);
   document.getElementById('nav-profile').classList.toggle('active', isProfile);
 
+  if (isCards) { if (jobsLoaded) renderDeck(); else loadJobs(); }
   if (isProfile) loadProfile();
   if (isFilters) loadFilters();
 }
@@ -761,6 +763,7 @@ async function loadJobs() {
   try {
     const data = await apiFetch('/api/jobs');
     jobs = data.jobs || [];
+    jobsLoaded = true;
     actions.style.display = 'flex';
     if (jobs.length === 0) {
       setSwipeButtonsDisabled(true);
@@ -1336,7 +1339,11 @@ function fly(type) {
 }
 
 // ── Start ──────────────────────────────────────────────────────────────────
-waitForInitData(5, loadJobs);
+function bootstrap() {
+  if (location.hash === '#filters') showView('filters');
+  else loadJobs();
+}
+waitForInitData(5, bootstrap);
 </script>
 </body>
 </html>

@@ -413,6 +413,17 @@ async def cmd_scrape_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_search_ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     lang_code = _lang(update)
+    if not get_user_skills(chat_id) and WEBAPP_URL:
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton(
+                t(lang_code, "btn_open_filters"),
+                web_app=WebAppInfo(url=WEBAPP_URL + "#filters"),
+            ),
+        ]])
+        await update.message.reply_text(
+            t(lang_code, "search_filters_required"), reply_markup=keyboard
+        )
+        return ConversationHandler.END
     saved_city = get_user_city(chat_id)
     if saved_city:
         await _run_search(saved_city, update.message, chat_id, lang_code)

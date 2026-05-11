@@ -48,6 +48,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "search_searching": "Searching jobs in {city}… (free, no AI)",
         "search_skills_active": "Active skills filter: {skills}",
         "search_no_filters_hint": "Tip: set a skills filter for more relevant results.",
+        "search_filters_required": (
+            "Set your skills filter first — /search needs it to know what to look for.\n"
+            "Tap the button below to open Filters."
+        ),
+        "btn_open_filters": "🔧 Open Filters",
         "search_done": (
             "Done. Found: {found}, new in DB: {saved}.\n"
             "Duplicates from previous searches are skipped.\n"
@@ -234,6 +239,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "search_searching": "Ищу вакансии в городе {city}… (бесплатно, без AI)",
         "search_skills_active": "Активный фильтр навыков: {skills}",
         "search_no_filters_hint": "Подсказка: задай фильтр навыков для более релевантных результатов.",
+        "search_filters_required": (
+            "Сначала задай фильтр навыков — без него /search не знает, что искать.\n"
+            "Нажми кнопку ниже, чтобы открыть Фильтры."
+        ),
+        "btn_open_filters": "🔧 Открыть фильтры",
         "search_done": (
             "Готово. Найдено: {found}, новых в базе: {saved}.\n"
             "Дубликаты из прошлых поисков пропущены.\n"
@@ -420,6 +430,11 @@ TEXTS: dict[str, dict[str, str]] = {
         "search_searching": "Szukam ofert w mieście {city}… (darmowe, bez AI)",
         "search_skills_active": "Aktywny filtr umiejętności: {skills}",
         "search_no_filters_hint": "Wskazówka: ustaw filtr umiejętności dla trafniejszych wyników.",
+        "search_filters_required": (
+            "Najpierw ustaw filtr umiejętności — bez niego /search nie wie, czego szukać.\n"
+            "Naciśnij przycisk poniżej, aby otworzyć Filtry."
+        ),
+        "btn_open_filters": "🔧 Otwórz filtry",
         "search_done": (
             "Gotowe. Znalezione: {found}, nowych w bazie: {saved}.\n"
             "Duplikaty z poprzednich wyszukiwań pominięto.\n"
