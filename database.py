@@ -386,34 +386,24 @@ def get_jobs(chat_id: int) -> list:
 
 
 def get_jobs_to_apply(
-    chat_id: int, min_score: int = 7, limit: int = 5, offset: int = 0
+    chat_id: int, min_score: int = 7, limit: int = 5, offset: int = 0,
+    include_unscored: bool = False,
 ) -> list:
+    """Pending jobs (applied = 0) with score >= min_score.
+
+    When include_unscored is True, jobs scraped without AI scoring (score IS NULL,
+    e.g. from /search) are also returned, listed after the scored ones.
+    """
+    score_clause = "(score >= %s OR score IS NULL)" if include_unscored else "score >= %s"
     with _get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT id, title, company, link, score, description, cover_letter,"
                 "       salary_min, salary_max, salary_currency, score_reason"
-                " FROM jobs WHERE chat_id = %s AND applied = 0 AND score >= %s"
-                " ORDER BY score DESC"
+                f" FROM jobs WHERE chat_id = %s AND applied = 0 AND {score_clause}"
+                " ORDER BY score DESC NULLS LAST, id DESC"
                 " LIMIT %s OFFSET %s",
                 (chat_id, min_score, limit, offset),
-            )
-            return cur.fetchall()
-
-
-def get_unscored_jobs(
-    chat_id: int, limit: int = 100, offset: int = 0
-) -> list:
-    """Return jobs scraped without AI scoring (score IS NULL), newest first."""
-    with _get_conn() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT id, title, company, link, description,"
-                "       salary_min, salary_max, salary_currency, source, city"
-                " FROM jobs WHERE chat_id = %s AND score IS NULL AND applied = 0"
-                " ORDER BY created_at DESC NULLS LAST"
-                " LIMIT %s OFFSET %s",
-                (chat_id, limit, offset),
             )
             return cur.fetchall()
 
@@ -464,7 +454,7 @@ def get_interested_jobs(chat_id: int) -> list:
             cur.execute(
                 "SELECT id, title, company, link, score, cover_letter"
                 " FROM jobs WHERE chat_id = %s AND applied = 3"
-                " ORDER BY score DESC",
+                " ORDER BY score DESC NULLS LAST, id DESC",
                 (chat_id,),
             )
             return cur.fetchall()

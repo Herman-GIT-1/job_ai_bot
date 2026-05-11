@@ -319,10 +319,7 @@ async def _run_search(city: str, msg, chat_id: int, lang_code: str) -> None:
     keyboard = None
     if WEBAPP_URL:
         keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton(
-                t(lang_code, "btn_browse_unscored"),
-                web_app=WebAppInfo(url=WEBAPP_URL + "#unscored"),
-            ),
+            InlineKeyboardButton(t(lang_code, "webapp_btn"), web_app=WebAppInfo(url=WEBAPP_URL)),
         ]])
     await msg.reply_text(
         t(lang_code, "search_done", found=len(jobs), saved=saved),

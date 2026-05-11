@@ -51,11 +51,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "search_done": (
             "Done. Found: {found}, new in DB: {saved}.\n"
             "Duplicates from previous searches are skipped.\n"
-            "These jobs aren't AI-scored — Premium can score them."
+            "Open the Mini App to swipe through them."
         ),
         "search_cancelled": "Search cancelled.",
         "search_cooldown": "Please wait {minutes} min before next search.",
-        "btn_browse_unscored": "📋 Browse new jobs",
         # --- premium ---
         "premium_required": (
             "💎 This feature requires Premium.\n"
@@ -238,11 +237,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "search_done": (
             "Готово. Найдено: {found}, новых в базе: {saved}.\n"
             "Дубликаты из прошлых поисков пропущены.\n"
-            "Эти вакансии не оценены AI — Premium может их оценить."
+            "Открой Mini App, чтобы пролистать их свайпами."
         ),
         "search_cancelled": "Поиск отменён.",
         "search_cooldown": "Подожди ещё {minutes} мин. перед следующим поиском.",
-        "btn_browse_unscored": "📋 Смотреть новые вакансии",
         # --- premium ---
         "premium_required": (
             "💎 Эта функция доступна только Premium-пользователям.\n"
@@ -425,11 +423,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "search_done": (
             "Gotowe. Znalezione: {found}, nowych w bazie: {saved}.\n"
             "Duplikaty z poprzednich wyszukiwań pominięto.\n"
-            "Te oferty nie są ocenione przez AI — Premium może je ocenić."
+            "Otwórz Mini App, aby przejrzeć je swipe'ami."
         ),
         "search_cancelled": "Wyszukiwanie anulowane.",
         "search_cooldown": "Poczekaj jeszcze {minutes} min. przed następnym wyszukiwaniem.",
-        "btn_browse_unscored": "📋 Przeglądaj nowe oferty",
         # --- premium ---
         "premium_required": (
             "💎 Ta funkcja wymaga Premium.\n"

@@ -28,7 +28,6 @@ from database import (
     get_jobs_by_status, move_to_status, get_cover_letter,
     get_stats, get_resume, get_user_lang, get_resume_file,
     get_user_city, set_user_city, get_user_skills, set_user_skills,
-    get_unscored_jobs,
 )
 
 logger = logging.getLogger(__name__)
@@ -89,44 +88,24 @@ async def webapp_index():
 
 @app.get("/api/jobs")
 async def api_jobs(chat_id: int = Depends(_auth)):
-    rows = get_jobs_to_apply(chat_id, min_score=DEFAULT_MIN_SCORE, limit=100, offset=0)
+    rows = get_jobs_to_apply(
+        chat_id, min_score=DEFAULT_MIN_SCORE, limit=100, offset=0, include_unscored=True
+    )
     jobs = []
     for row in rows:
-        job_id, title, company, link, score, description, cover_letter, \
-            salary_min, salary_max, salary_currency = row
+        (job_id, title, company, link, score, description, cover_letter,
+         salary_min, salary_max, salary_currency) = row[:10]
         jobs.append({
             "id": job_id,
             "title": title or "",
             "company": company or "",
             "link": link or "",
-            "score": score or 0,
+            "score": score,  # None for unscored /search jobs
             "description": (description or "")[:500],
             "cover_letter": cover_letter or "",
             "salary_min": salary_min,
             "salary_max": salary_max,
             "salary_currency": salary_currency,
-        })
-    return {"jobs": jobs}
-
-
-@app.get("/api/jobs/unscored")
-async def api_jobs_unscored(chat_id: int = Depends(_auth)):
-    rows = get_unscored_jobs(chat_id, limit=100, offset=0)
-    jobs = []
-    for row in rows:
-        job_id, title, company, link, description, \
-            salary_min, salary_max, salary_currency, source, city = row
-        jobs.append({
-            "id": job_id,
-            "title": title or "",
-            "company": company or "",
-            "link": link or "",
-            "description": (description or "")[:500],
-            "salary_min": salary_min,
-            "salary_max": salary_max,
-            "salary_currency": salary_currency,
-            "source": source or "",
-            "city": city or "",
         })
     return {"jobs": jobs}
 
@@ -168,7 +147,7 @@ async def api_tracker(status: str = Query(...), chat_id: int = Depends(_auth)):
             "title": title or "",
             "company": company or "",
             "link": link or "",
-            "score": score or 0,
+            "score": score,  # None for unscored /search jobs
             "job_status": job_status or "",
         })
     return {"jobs": jobs}
@@ -307,7 +286,7 @@ async def api_saved(chat_id: int = Depends(_auth)):
             "title": title or "",
             "company": company or "",
             "link": link or "",
-            "score": score or 0,
+            "score": score,  # None for unscored /search jobs
             "cover_letter": cover_letter or "",
         })
     return {"jobs": jobs}
