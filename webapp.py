@@ -14,7 +14,7 @@ import hmac
 import json
 import logging
 import os
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, quote
 
 import requests as _requests
 
@@ -255,10 +255,15 @@ async def api_resume_file(chat_id: int = Depends(_auth)):
     ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
     content_type = _RESUME_CONTENT_TYPES.get(ext, "application/octet-stream")
 
+    # HTTP headers must be Latin-1; filenames may contain Cyrillic etc.
+    # ASCII fallback + RFC 5987 UTF-8 variant for modern clients.
+    ascii_name = file_name.encode("ascii", "ignore").decode().strip() or f"resume.{ext or 'bin'}"
+    disposition = f"inline; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(file_name)}"
+
     return Response(
         content=content,
         media_type=content_type,
-        headers={"Content-Disposition": f'inline; filename="{file_name}"'},
+        headers={"Content-Disposition": disposition},
     )
 
 
