@@ -317,7 +317,7 @@ async def _run_search(city: str, msg, chat_id: int, lang_code: str) -> None:
         None, lambda: search_jobs(city, chat_id, use_ai=False)
     )
 
-    saved = sum(1 for job in jobs if save_job(job, chat_id))
+    saved = sum(1 for job in jobs if save_job(job, chat_id, via_search=True))
 
     keyboard = None
     if WEBAPP_URL:

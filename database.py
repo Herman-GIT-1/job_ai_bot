@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS season_notify BOOLEAN DEFAULT FALSE",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS season_hint_shown BOOLEAN DEFAULT FALSE",
                 "ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS via_search BOOLEAN DEFAULT FALSE",
             ]:
                 cur.execute(ddl)
             cur.execute(
@@ -331,8 +332,12 @@ def set_resume(chat_id: int, text: str) -> None:
 
 # ── Job operations (all scoped to chat_id) ────────────────────────────────────
 
-def save_job(job: dict, chat_id: int) -> bool:
-    """Insert job; returns True if a new row was created, False on duplicate or error."""
+def save_job(job: dict, chat_id: int, via_search: bool = False) -> bool:
+    """Insert job; returns True if a new row was created, False on duplicate or error.
+
+    via_search marks jobs added by the free /search command — they stay in the
+    swipe deck regardless of AI score and are exempt from the daily cleanup.
+    """
     try:
         with _get_conn() as conn:
             with conn.cursor() as cur:
@@ -347,8 +352,8 @@ def save_job(job: dict, chat_id: int) -> bool:
                 cur.execute(
                     "INSERT INTO jobs"
                     " (chat_id, title, company, link, tech_stack, remote, city, description,"
-                    "  source, salary_min, salary_max, salary_currency, content_hash)"
-                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                    "  source, salary_min, salary_max, salary_currency, content_hash, via_search)"
+                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
                     " ON CONFLICT (link, chat_id) DO NOTHING",
                     (
                         chat_id,
@@ -364,6 +369,7 @@ def save_job(job: dict, chat_id: int) -> bool:
                         job.get("salary_max"),
                         job.get("salary_currency"),
                         content_hash,
+                        via_search,
                     ),
                 )
                 inserted = cur.rowcount > 0
@@ -391,10 +397,11 @@ def get_jobs_to_apply(
 ) -> list:
     """Pending jobs (applied = 0) with score >= min_score.
 
-    When include_unscored is True, jobs scraped without AI scoring (score IS NULL,
-    e.g. from /search) are also returned, listed after the scored ones.
+    When include_unscored is True, jobs scraped without AI scoring (score IS NULL)
+    and jobs added via /search (via_search) are also returned, listed after the
+    high-scored ones. /search jobs stay in the deck even after a low AI score.
     """
-    score_clause = "(score >= %s OR score IS NULL)" if include_unscored else "score >= %s"
+    score_clause = "(score >= %s OR score IS NULL OR via_search)" if include_unscored else "score >= %s"
     with _get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -590,13 +597,13 @@ def reset_scores_selective(chat_id: int, max_score: int = 5, min_age_days: int =
 
 def delete_expired_jobs(days: int = 21) -> int:
     """Delete unscored pending jobs (applied=0, score IS NULL) older than `days` days.
-    Scored jobs are kept regardless of age — user may still want to review them.
-    Returns number of deleted rows."""
+    Scored jobs are kept regardless of age, and jobs added via /search (via_search)
+    are never auto-deleted. Returns number of deleted rows."""
     try:
         with _get_conn() as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "DELETE FROM jobs WHERE applied = 0 AND score IS NULL"
+                    "DELETE FROM jobs WHERE applied = 0 AND score IS NULL AND via_search = FALSE"
                     " AND created_at < NOW() - INTERVAL '%s days'",
                     (days,),
                 )
