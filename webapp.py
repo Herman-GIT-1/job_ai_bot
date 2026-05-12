@@ -68,10 +68,12 @@ def _auth(init_data: str = Query(default="", alias="init_data")) -> int:
     try:
         user = _verify_init_data(init_data)
         return int(user["id"])
-    except (ValueError, KeyError) as e:
+    except HTTPException:
+        raise
+    except Exception as e:
         logger.warning("Auth failed: %s | token_len=%d | init_data_len=%d",
                        e, len(BOT_TOKEN), len(init_data))
-        raise HTTPException(status_code=401, detail=str(e))
+        raise HTTPException(status_code=401, detail="Invalid initData — open via Telegram")
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -211,34 +213,50 @@ _RESUME_CONTENT_TYPES = {
 @app.get("/api/resume/file")
 async def api_resume_file(chat_id: int = Depends(_auth)):
     """Proxy original resume file from Telegram CDN to the client."""
+    if not BOT_TOKEN:
+        logger.error("api_resume_file: TELEGRAM_BOT_TOKEN is not set in the webapp process")
+        raise HTTPException(status_code=503, detail="Resume download is temporarily unavailable")
+
     row = get_resume_file(chat_id)
     if not row:
         raise HTTPException(status_code=404, detail="No original resume file saved")
     file_id, file_name = row
+    file_name = file_name or "resume"
 
-    # Get temporary download path from Telegram
-    tg_resp = _requests.get(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
-        params={"file_id": file_id},
-        timeout=10,
-    )
-    tg_data = tg_resp.json()
-    if not tg_data.get("ok"):
-        raise HTTPException(status_code=502, detail="Telegram returned error for getFile")
+    try:
+        # Get temporary download path from Telegram
+        tg_resp = _requests.get(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
+            params={"file_id": file_id},
+            timeout=15,
+        )
+        tg_data = tg_resp.json()
+        if not tg_data.get("ok"):
+            logger.warning("api_resume_file: getFile not ok: %s", tg_data)
+            raise HTTPException(
+                status_code=404,
+                detail="The resume file is no longer available on Telegram — please re-upload it.",
+            )
 
-    file_path = tg_data["result"]["file_path"]
-    file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+        file_path = tg_data["result"]["file_path"]
+        file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
 
-    # Download and proxy — bot token stays server-side
-    file_r = _requests.get(file_url, timeout=30)
-    if not file_r.ok:
-        raise HTTPException(status_code=502, detail="Failed to download file from Telegram")
+        # Download and proxy — bot token stays server-side
+        file_r = _requests.get(file_url, timeout=30)
+        file_r.raise_for_status()
+        content = file_r.content
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("api_resume_file: failed to fetch file from Telegram (chat_id=%s): %s",
+                     chat_id, e)
+        raise HTTPException(status_code=502, detail="Could not fetch the resume file from Telegram")
 
     ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
     content_type = _RESUME_CONTENT_TYPES.get(ext, "application/octet-stream")
 
     return Response(
-        content=file_r.content,
+        content=content,
         media_type=content_type,
         headers={"Content-Disposition": f'inline; filename="{file_name}"'},
     )
