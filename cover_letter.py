@@ -5,13 +5,13 @@ import time
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-from config import MODEL_LETTER
+from config import MODEL_LETTER, ANTHROPIC_MAX_RETRIES
 from resume_parser import load_resume
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
-client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"), max_retries=ANTHROPIC_MAX_RETRIES)
 
 
 def generate_letter(job, resume=None):

@@ -1,18 +1,20 @@
 import json
 import logging
 import os
+import random
 import time
 
+import anthropic
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-from config import MODEL_SCORING
+from config import MODEL_SCORING, ANTHROPIC_MAX_RETRIES
 from resume_parser import load_resume
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
-client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"), max_retries=ANTHROPIC_MAX_RETRIES)
 
 
 def evaluate(job, resume=None) -> tuple[int, str]:
@@ -71,13 +73,24 @@ Return ONLY valid JSON on one line, no other text:
                 }],
             )
             raw = response.content[0].text.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+                raw = raw.strip()
             data = json.loads(raw)
             return int(data["score"]), str(data.get("reason", ""))
+        except anthropic.RateLimitError as e:
+            # The SDK already retried with backoff and gave up — a quick local
+            # retry won't help (the rate-limit window hasn't reset). Give up.
+            logger.warning("Score skipped — rate limited: %s", e)
+            return 5, ""
         except Exception as e:
             last_err = e
             if attempt < 2:
-                logger.warning("Score attempt %d failed: %s — retrying in 2s", attempt + 1, e)
-                time.sleep(2)
+                wait = 2 ** attempt + random.uniform(0, 1)
+                logger.warning("Score attempt %d failed: %s — retrying in %.1fs", attempt + 1, e, wait)
+                time.sleep(wait)
 
     logger.error("Score error after 3 attempts: %s", last_err)
     return 5, ""   # neutral default — never crash the pipeline

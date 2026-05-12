@@ -70,6 +70,12 @@ DEFAULT_MIN_SCORE   = 6    # jobs shown in /jobs by default
 HIGH_SCORE_ALERT    = 8    # threshold for "X high-score jobs" alert after scoring
 LETTER_MIN_SCORE    = 7    # minimum score to generate a cover letter
 
+# ── AI request pacing (Anthropic org limit is 50 RPM for Haiku) ────────────────
+
+SCORE_CONCURRENCY     = 2     # max concurrent /score requests
+SCORE_REQUEST_DELAY   = 2.0   # seconds to wait after each scored job (≈ 40 RPM at concurrency 2)
+ANTHROPIC_MAX_RETRIES = 6     # SDK-level retries; SDK does exp backoff + honours retry-after on 429
+
 # ── Resume ─────────────────────────────────────────────────────────────────────
 
 RESUME_MIN_LENGTH = 100    # characters; shorter than this is rejected as invalid

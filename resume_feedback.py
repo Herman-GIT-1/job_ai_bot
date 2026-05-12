@@ -2,9 +2,11 @@ import os
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
+from config import ANTHROPIC_MAX_RETRIES
+
 load_dotenv()
 
-_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+_client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"), max_retries=ANTHROPIC_MAX_RETRIES)
 
 
 def analyze_resume(resume_text: str) -> str:

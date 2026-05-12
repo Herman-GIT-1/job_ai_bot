@@ -8,7 +8,7 @@ import time
 import requests
 from dotenv import load_dotenv
 from anthropic import Anthropic
-from config import MODEL_QUERY_BUILDER, TECH_KEYWORDS
+from config import MODEL_QUERY_BUILDER, TECH_KEYWORDS, ANTHROPIC_MAX_RETRIES
 from resume_parser import load_resume
 
 load_dotenv()
@@ -30,7 +30,7 @@ NFJ_HEADERS = {
     "Referer": "https://nofluffjobs.com/pl/praca",
 }
 
-_claude = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+_claude = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"), max_retries=ANTHROPIC_MAX_RETRIES)
 
 
 def _strip_html(text: str, max_len: int = 1500) -> str:

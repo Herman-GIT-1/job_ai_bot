@@ -14,7 +14,8 @@ from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
 from config import (CITIES, SCRAPE_COOLDOWN_MINUTES, JOBS_PAGE_SIZE,
                     DEFAULT_MIN_SCORE, HIGH_SCORE_ALERT, LETTER_MIN_SCORE,
                     JOB_EXPIRY_DAYS, WEBAPP_URL,
-                    THIN_MONTHS, SEASON_START_MONTHS, THIN_SCRAPE_THRESHOLD)
+                    THIN_MONTHS, SEASON_START_MONTHS, THIN_SCRAPE_THRESHOLD,
+                    SCORE_CONCURRENCY, SCORE_REQUEST_DELAY)
 from database import (get_jobs_to_apply, count_jobs_to_apply, get_job_link,
                       get_cover_letter, mark_applied, update_job_status,
                       get_stats, get_jobs, update_job, reset_scores,
@@ -117,7 +118,7 @@ async def _run_score(msg, chat_id: int, lang_code: str) -> None:
     status_msg = await msg.reply_text(t(lang_code, "score_progress", done=0, total=total))
 
     loop = asyncio.get_running_loop()
-    sem = asyncio.Semaphore(5)
+    sem = asyncio.Semaphore(SCORE_CONCURRENCY)
     done = 0
 
     async def score_one(job_id, job):
@@ -126,7 +127,7 @@ async def _run_score(msg, chat_id: int, lang_code: str) -> None:
             try:
                 score, reason = await asyncio.wait_for(
                     loop.run_in_executor(None, lambda j=job, r=resume: evaluate(j, resume=r)),
-                    timeout=30.0,
+                    timeout=120.0,
                 )
             except asyncio.TimeoutError:
                 score, reason = 5, ""
@@ -137,11 +138,13 @@ async def _run_score(msg, chat_id: int, lang_code: str) -> None:
                         loop.run_in_executor(
                             None, lambda j=job, r=resume: generate_letter(j, resume=r)
                         ),
-                        timeout=60.0,
+                        timeout=120.0,
                     )
                 except asyncio.TimeoutError:
                     letter = "Cover letter generation timed out."
             update_job(job_id, chat_id, score, letter, reason)
+            # Pace requests so a full /score run stays under the API rate limit.
+            await asyncio.sleep(SCORE_REQUEST_DELAY)
         done += 1
         if done % 5 == 0 or done == total:
             await status_msg.edit_text(t(lang_code, "score_progress", done=done, total=total))
