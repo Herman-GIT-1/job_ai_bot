@@ -221,6 +221,13 @@ def _specialty_list(skills: list[str]) -> list[str]:
     return [s for s in (skills or []) if s.lower() not in all_seniority]
 
 
+def _names_preview(names, limit: int = 8) -> str:
+    """Comma-joined preview of an iterable of names, truncated for log lines."""
+    names = list(names)
+    head = ", ".join(names[:limit])
+    return head if len(names) <= limit else f"{head} … (+{len(names) - limit} more)"
+
+
 def _fetch_adzuna(queries: list[str], city: str, skills: list[str] = None, seniority: str = "junior") -> list[dict]:
     if not ADZUNA_APP_ID or not ADZUNA_APP_KEY:
         logger.info("No ADZUNA_APP_ID or ADZUNA_APP_KEY — source skipped.")
@@ -228,7 +235,6 @@ def _fetch_adzuna(queries: list[str], city: str, skills: list[str] = None, senio
 
     jobs = []
     for query in queries:
-        logger.info("[Adzuna] Searching: %s", query)
         params = {
             "app_id": ADZUNA_APP_ID,
             "app_key": ADZUNA_APP_KEY,
@@ -241,6 +247,7 @@ def _fetch_adzuna(queries: list[str], city: str, skills: list[str] = None, senio
         specialties = _specialty_list(skills)
         if specialties:
             params["what"] = query + " " + specialties[0]
+        logger.info("[Adzuna] Keyword search %r in %s (Adzuna PL aggregator)", params["what"], city)
         try:
             r = requests.get(ADZUNA_BASE_URL, params=params, timeout=15)
             r.raise_for_status()
@@ -291,7 +298,6 @@ def _city_to_nfj_slug(city: str) -> str:
 def _fetch_nofluffjobs(city: str, skills: list[str] = None, seniority: str = "junior") -> list[dict]:
     """NoFluffJobs — Polish IT jobs, no API key needed."""
     city_slug = _city_to_nfj_slug(city)
-    logger.info("[NoFluffJobs] Searching %s in %s (slug: %s)...", seniority, city, city_slug)
 
     if seniority == "senior":
         nfj_levels     = ["senior", "mid", "regular", "expert"]
@@ -301,6 +307,10 @@ def _fetch_nofluffjobs(city: str, skills: list[str] = None, seniority: str = "ju
         nfj_level_set  = {"junior", "intern", "trainee"}
 
     specialties = _specialty_list(skills)
+    logger.info(
+        "[NoFluffJobs] nofluffjobs.com — city=%s, levels=%s, skills=%s",
+        city_slug, nfj_levels, ", ".join(specialties) or "any",
+    )
 
     jobs = []
     page = 1
@@ -367,7 +377,7 @@ def _fetch_remotive(categories: list[str], seniority: str = "junior") -> list[di
     seen_links: set[str] = set()
 
     for category in categories:
-        logger.info("[Remotive] Searching category: %s...", category)
+        logger.info("[Remotive] remotive.com — fetching remote-worldwide jobs, category=%s", category)
         try:
             r = requests.get(
                 REMOTIVE_URL,
@@ -501,7 +511,8 @@ def _fetch_greenhouse(city: str, skills: list[str] = None, seniority: str = "jun
     from ats_companies import GREENHOUSE_BOARDS
     if not GREENHOUSE_BOARDS:
         return []
-    logger.info("[Greenhouse] Searching %d boards (%s)...", len(GREENHOUSE_BOARDS), seniority)
+    logger.info("[Greenhouse] Scanning %d company boards (%s): %s",
+                len(GREENHOUSE_BOARDS), seniority, _names_preview(GREENHOUSE_BOARDS.values()))
     jobs: list[dict] = []
     city_lower = city.lower()
     for board_id, company_name in GREENHOUSE_BOARDS.items():
@@ -545,7 +556,8 @@ def _fetch_lever(city: str, skills: list[str] = None, seniority: str = "junior")
     from ats_companies import LEVER_COMPANIES
     if not LEVER_COMPANIES:
         return []
-    logger.info("[Lever] Searching %d companies (%s)...", len(LEVER_COMPANIES), seniority)
+    logger.info("[Lever] Scanning %d company boards (%s): %s",
+                len(LEVER_COMPANIES), seniority, _names_preview(LEVER_COMPANIES.values()))
     jobs: list[dict] = []
     city_lower = city.lower()
     for company_slug, company_name in LEVER_COMPANIES.items():
@@ -592,7 +604,8 @@ def _fetch_workable(city: str, skills: list[str] = None, seniority: str = "junio
     from ats_companies import WORKABLE_COMPANIES
     if not WORKABLE_COMPANIES:
         return []
-    logger.info("[Workable] Searching %d companies (%s)...", len(WORKABLE_COMPANIES), seniority)
+    logger.info("[Workable] Scanning %d company boards (%s): %s",
+                len(WORKABLE_COMPANIES), seniority, _names_preview(WORKABLE_COMPANIES.values()))
     jobs: list[dict] = []
     city_lower = city.lower()
     for subdomain, company_name in WORKABLE_COMPANIES.items():
@@ -706,8 +719,9 @@ def _fetch_corporate_careers(city: str, skills: list[str] = None, seniority: str
 
     jobs: list[dict] = []
     if WORKDAY_COMPANIES:
-        logger.info("[CorporateCareers] Searching %d Workday sites (%s)...",
-                     len(WORKDAY_COMPANIES), seniority)
+        logger.info("[CorporateCareers] Scanning %d Workday career sites (%s): %s",
+                     len(WORKDAY_COMPANIES), seniority,
+                     _names_preview(c["company"] for c in WORKDAY_COMPANIES))
     for cfg in WORKDAY_COMPANIES:
         try:
             jobs.extend(_fetch_workday_company(cfg, city, seniority))
@@ -737,7 +751,7 @@ def search_jobs(
             resume_text = ""
             logger.warning("Resume not found — using fallback queries.")
         queries, used_fallback, remotive_categories = build_queries(resume_text, city, skills)
-        logger.info("Adzuna queries: %d%s", len(queries), " (fallback)" if used_fallback else "")
+        mode = "AI fallback" if used_fallback else "AI"
     else:
         specialties = _specialty_list(skills)
         if specialties:
@@ -753,8 +767,15 @@ def search_jobs(
             )
         remotive_categories = ["software-dev", "data", "all-others"]
         used_fallback = False
-        logger.info("No-AI search mode: %d queries", len(queries))
-    logger.info("Remotive categories: %s | seniority: %s", remotive_categories, seniority)
+        mode = "no-AI (filters only)"
+
+    logger.info("Search plan (%s, %s): keyword queries = %s", mode, seniority, queries)
+    logger.info("Search plan: Remotive remote-job categories = %s", remotive_categories)
+    logger.info(
+        "Querying sources: Adzuna (PL keyword search), NoFluffJobs (PL IT board), "
+        "Remotive (remote worldwide), Greenhouse/Lever/Workable (curated company boards), "
+        "CorporateCareers (Workday sites)"
+    )
 
     raw = []
     raw.extend(_fetch_adzuna(queries, city, skills, seniority))
@@ -799,5 +820,5 @@ def search_jobs(
         jobs = [j for j in jobs if _matches_skills(j, specialties)]
         logger.info("Specialty filter: kept %d of %d jobs (required: %s)", len(jobs), before, specialties)
 
-    logger.info("Total unique jobs: %d (from %d raw)", len(jobs), len(raw))
+    logger.info("Done — %d unique jobs from %d raw results across all sources", len(jobs), len(raw))
     return jobs, used_fallback
